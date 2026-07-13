@@ -1,0 +1,66 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { Card, ShopHeader, ShortcutButton } from '../../components';
+import type { ManageStackParamList } from '../../navigation/manageTypes';
+import { colors, spacing, typography } from '../../theme';
+
+type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'ManageHome'>;
+
+export function ManageHomeScreen() {
+  const navigation = useNavigation<NavigationProp>();
+
+  return (
+    <View style={styles.container}>
+      <ShopHeader title="Manage" />
+
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.subtitle}>Company admin dashboard</Text>
+
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="👥"
+            label="Distributors"
+            onPress={() => navigation.navigate('DistributorList')}
+          />
+          <ShortcutButton
+            icon="📦"
+            label="Products"
+            onPress={() => navigation.navigate('AddEditProduct', {})}
+          />
+        </View>
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="📰"
+            label="Post News"
+            onPress={() => navigation.navigate('PostNews')}
+          />
+          <ShortcutButton
+            icon="💳"
+            label="Payments"
+            onPress={() => navigation.navigate('PendingPayments')}
+          />
+        </View>
+
+        <Card style={styles.tip}>
+          <Text style={styles.tipTitle}>Admin Access</Text>
+          <Text style={styles.tipBody}>
+            Confirm pending bank transfers and mobile money payments. Manage products and
+            publish company news to all distributors.
+          </Text>
+        </Card>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xxxl },
+  subtitle: { ...typography.body, color: colors.textSecondary },
+  grid: { flexDirection: 'row', gap: spacing.md },
+  tip: { backgroundColor: colors.surfaceMuted },
+  tipTitle: { ...typography.label, color: colors.primary, marginBottom: spacing.sm },
+  tipBody: { ...typography.bodySmall, color: colors.textSecondary },
+});
