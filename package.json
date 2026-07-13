@@ -1,0 +1,14 @@
+{
+  "name": "theonutra",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm -w mobile run start",
+    "dev:api": "npm -w api run dev",
+    "dev": "powershell -NoProfile -Command \"Start-Process powershell -ArgumentList 'npm run dev:api'; npm run dev:mobile\""
+  }
+}
+
