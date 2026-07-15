@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { CreateProductInput, UpdateProductInput } from '../schemas/catalog.schema.js';
+import { deleteCloudinaryAsset } from './uploads.service.js';
 
 // ── Shared shapes ─────────────────────────────────────────────────────────────
 
@@ -158,7 +159,24 @@ export async function updateProduct(
   id: string,
   input: UpdateProductInput,
 ): Promise<Product> {
-  // 1. Update the product row if any product-level fields are present
+  // 1. Fetch existing product to get old imageUrl before updating
+  const { data: existingProduct, error: fetchError } = await supabase
+    .from('products')
+    .select('id, name, description, image_url, is_active, created_at, updated_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch product: ${fetchError.message}`);
+  }
+
+  if (!existingProduct) {
+    throw new ApiError(404, 'Product not found');
+  }
+
+  const oldImageUrl = existingProduct.image_url as string | null;
+
+  // 2. Update the product row if any product-level fields are present
   const productPatch: Record<string, unknown> = {};
   if (input.name !== undefined)        productPatch['name']        = input.name;
   if (input.description !== undefined) productPatch['description'] = input.description;
@@ -182,20 +200,10 @@ export async function updateProduct(
     }
     product = data;
   } else {
-    // Fetch the existing product just to return it
-    const { data, error } = await supabase
-      .from('products')
-      .select('id, name, description, image_url, is_active, created_at, updated_at')
-      .eq('id', id)
-      .single();
-
-    if (error || !data) {
-      throw new ApiError(404, 'Product not found');
-    }
-    product = data;
+    product = existingProduct;
   }
 
-  // 2. Upsert price rows if provided (conflict on product_id + country_id)
+  // 3. Upsert price rows if provided (conflict on product_id + country_id)
   if (input.prices && input.prices.length > 0) {
     const priceRows = input.prices.map((p) => ({
       product_id:   id,
@@ -213,6 +221,12 @@ export async function updateProduct(
     }
   }
 
+  // 4. Delete old Cloudinary asset if imageUrl changed
+  if (input.imageUrl !== undefined && input.imageUrl !== oldImageUrl) {
+    // Delete the old image after successful DB update
+    await deleteCloudinaryAsset(oldImageUrl);
+  }
+
   return mapProduct(product!);
 }
 
@@ -222,6 +236,24 @@ export async function updateProduct(
  * Staff-only — caller must have already passed requireStaff middleware.
  */
 export async function deactivateProduct(id: string): Promise<void> {
+  // 1. Fetch existing product to get imageUrl before deactivating
+  const { data: existingProduct, error: fetchError } = await supabase
+    .from('products')
+    .select('image_url')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch product: ${fetchError.message}`);
+  }
+
+  if (!existingProduct) {
+    throw new ApiError(404, 'Product not found');
+  }
+
+  const oldImageUrl = existingProduct.image_url as string | null;
+
+  // 2. Deactivate the product
   const { error } = await supabase
     .from('products')
     .update({ is_active: false })
@@ -230,6 +262,9 @@ export async function deactivateProduct(id: string): Promise<void> {
   if (error) {
     throw new ApiError(500, `Failed to deactivate product: ${error.message}`);
   }
+
+  // 3. Delete Cloudinary asset after successful deactivation
+  await deleteCloudinaryAsset(oldImageUrl);
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────

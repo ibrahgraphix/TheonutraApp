@@ -1,6 +1,7 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -38,6 +39,7 @@ export function ProductDetailScreen() {
 
   useEffect(() => {
     if (!activeCountry) return;
+    setLoading(true);
     getProductById(route.params.productId, activeCountry)
       .then(setProduct)
       .finally(() => setLoading(false));
@@ -87,13 +89,19 @@ export function ProductDetailScreen() {
     );
   }
 
+  const hasRemoteImage = Boolean(product.imageUrl?.startsWith('http'));
+
   return (
     <View style={styles.container}>
       <ShopHeader onBack={() => navigation.goBack()} title="Product" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.imagePlaceholder}>
-          <Text style={styles.emoji}>{getProductEmoji(product.category)}</Text>
+          {hasRemoteImage ? (
+            <Image contentFit="cover" source={{ uri: product.imageUrl }} style={styles.image} />
+          ) : (
+            <Text style={styles.emoji}>{getProductEmoji(product.category)}</Text>
+          )}
         </View>
 
         <View style={styles.meta}>
@@ -157,6 +165,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 200,
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  image: {
+    height: '100%',
+    width: '100%',
   },
   emoji: {
     fontSize: 72,

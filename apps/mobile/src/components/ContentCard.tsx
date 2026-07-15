@@ -1,7 +1,8 @@
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getCoverStyle } from '../utils/format';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, spacing, typography } from '../theme';
 import { Card } from './Card';
 
 interface ContentCardProps {
@@ -19,6 +20,7 @@ export function ContentCard({
   meta,
   onPress,
 }: ContentCardProps) {
+  const isRemote = Boolean(imageUrl?.startsWith('http'));
   const cover = getCoverStyle(imageUrl);
 
   return (
@@ -28,9 +30,13 @@ export function ContentCard({
       style={({ pressed }) => [pressed && styles.pressed]}
     >
       <Card elevated padded={false} style={styles.card}>
-        <View style={[styles.cover, { backgroundColor: cover.color }]}>
-          <Text style={styles.coverEmoji}>{cover.emoji}</Text>
-        </View>
+        {isRemote ? (
+          <Image contentFit="cover" source={{ uri: imageUrl }} style={styles.remoteCover} />
+        ) : (
+          <View style={[styles.cover, { backgroundColor: cover.color }]}>
+            <Text style={styles.coverEmoji}>{cover.emoji}</Text>
+          </View>
+        )}
         <View style={styles.content}>
           {meta ? <Text style={styles.meta}>{meta}</Text> : null}
           <Text numberOfLines={2} style={styles.title}>
@@ -51,6 +57,10 @@ const styles = StyleSheet.create({
   },
   card: {
     overflow: 'hidden',
+  },
+  remoteCover: {
+    height: 120,
+    width: '100%',
   },
   cover: {
     alignItems: 'center',

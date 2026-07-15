@@ -25,17 +25,24 @@ export function ManageHomeScreen() {
             onPress={() => navigation.navigate('DistributorList')}
           />
           <ShortcutButton
+            icon="🌍"
+            label="Countries"
+            onPress={() => navigation.navigate('CountryList')}
+          />
+        </View>
+        <View style={styles.grid}>
+          <ShortcutButton
             icon="📦"
             label="Products"
             onPress={() => navigation.navigate('AddEditProduct', {})}
           />
-        </View>
-        <View style={styles.grid}>
           <ShortcutButton
             icon="📰"
             label="Post News"
             onPress={() => navigation.navigate('PostNews')}
           />
+        </View>
+        <View style={styles.grid}>
           <ShortcutButton
             icon="💳"
             label="Payments"
@@ -46,8 +53,8 @@ export function ManageHomeScreen() {
         <Card style={styles.tip}>
           <Text style={styles.tipTitle}>Admin Access</Text>
           <Text style={styles.tipBody}>
-            Confirm pending bank transfers and mobile money payments. Manage products and
-            publish company news to all distributors.
+            Confirm payments, manage distributors and countries, update products, and publish
+            company news.
           </Text>
         </Card>
       </ScrollView>

@@ -1,0 +1,1 @@
+{"version":3,"file":"distributorAuth.js","sourceRoot":"","sources":["../../src/utils/distributorAuth.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,GAAG,EAAE,MAAM,kBAAkB,CAAC;AAEvC;;;;;;;;;;GAUG;AACH,MAAM,UAAU,oBAAoB,CAAC,aAAqB;IACxD,OAAO,GAAG,aAAa,CAAC,IAAI,EAAE,CAAC,WAAW,EAAE,IAAI,GAAG,CAAC,qBAAqB,EAAE,CAAC;AAC9E,CAAC"}

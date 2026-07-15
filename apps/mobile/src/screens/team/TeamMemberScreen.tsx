@@ -12,8 +12,7 @@ import {
 
 import { Avatar, Badge, ShopHeader, TeamMemberRow } from '../../components';
 import type { TeamStackParamList } from '../../navigation/teamTypes';
-import { getDistributorById, getTeam } from '../../services/api';
-import { getCurrencyForCountry } from '../../services/mockData';
+import { getCurrencyForCountry, getDistributorById, getTeam } from '../../services/api';
 import type { Distributor, TeamMember } from '../../types';
 import { formatDate } from '../../utils/format';
 import { colors, spacing, typography } from '../../theme';

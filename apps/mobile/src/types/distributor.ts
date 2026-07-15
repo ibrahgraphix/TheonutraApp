@@ -7,6 +7,7 @@ export interface Distributor {
   phone: string;
   role: DistributorRole;
   country: string;
+  countryId?: string;
   referredBy: string | null;
   joinDate: string;
   avatarUrl?: string;

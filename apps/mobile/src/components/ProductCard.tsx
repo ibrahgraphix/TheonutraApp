@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ProductListing } from '../types';
@@ -12,6 +13,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onPress }: ProductCardProps) {
+  const hasRemoteImage = Boolean(product.imageUrl?.startsWith('http'));
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -20,7 +23,11 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
     >
       <Card elevated padded={false} style={styles.card}>
         <View style={styles.imagePlaceholder}>
-          <Text style={styles.emoji}>{getProductEmoji(product.category)}</Text>
+          {hasRemoteImage ? (
+            <Image contentFit="cover" source={{ uri: product.imageUrl }} style={styles.image} />
+          ) : (
+            <Text style={styles.emoji}>{getProductEmoji(product.category)}</Text>
+          )}
         </View>
         <View style={styles.content}>
           <Badge label={product.category} variant="neutral" />
@@ -52,6 +59,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     height: 110,
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  image: {
+    height: '100%',
+    width: '100%',
   },
   emoji: {
     fontSize: 40,

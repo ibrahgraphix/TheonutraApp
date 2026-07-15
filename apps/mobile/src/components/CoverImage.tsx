@@ -1,7 +1,8 @@
+import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getCoverStyle } from '../utils/format';
-import { colors, radius, spacing, typography } from '../theme';
+import { radius } from '../theme';
 
 interface CoverImageProps {
   imageUrl?: string;
@@ -9,6 +10,18 @@ interface CoverImageProps {
 }
 
 export function CoverImage({ imageUrl, height = 200 }: CoverImageProps) {
+  const isRemote = Boolean(imageUrl?.startsWith('http'));
+
+  if (isRemote) {
+    return (
+      <Image
+        contentFit="cover"
+        source={{ uri: imageUrl }}
+        style={[styles.remote, { height }]}
+      />
+    );
+  }
+
   const cover = getCoverStyle(imageUrl);
 
   return (
@@ -19,6 +32,11 @@ export function CoverImage({ imageUrl, height = 200 }: CoverImageProps) {
 }
 
 const styles = StyleSheet.create({
+  remote: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    width: '100%',
+  },
   cover: {
     alignItems: 'center',
     borderRadius: radius.lg,

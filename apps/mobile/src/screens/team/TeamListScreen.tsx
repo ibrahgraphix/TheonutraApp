@@ -12,8 +12,7 @@ import {
 
 import { ShopHeader, TeamMemberRow } from '../../components';
 import type { TeamStackParamList } from '../../navigation/teamTypes';
-import { getTeam } from '../../services/api';
-import { getCurrencyForCountry } from '../../services/mockData';
+import { getCurrencyForCountry, getTeam } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import type { TeamMember } from '../../types';
 import { colors, spacing, typography } from '../../theme';

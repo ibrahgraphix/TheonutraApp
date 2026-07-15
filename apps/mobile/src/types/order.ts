@@ -15,6 +15,14 @@ export interface OrderItem {
   unitPrice: number;
 }
 
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  currency: string;
+  quantity: number;
+}
+
 export interface OrderPaymentDetails {
   method: PaymentMethod;
   reference?: string;

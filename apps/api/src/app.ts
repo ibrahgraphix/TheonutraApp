@@ -11,6 +11,12 @@ import teamRouter from './routes/team.routes.js';
 import ordersRouter from './routes/orders.routes.js';
 import paymentsRouter from './routes/payments.routes.js';
 import commissionsRouter from './routes/commissions.routes.js';
+import analyticsRouter from './routes/analytics.routes.js';
+import accountRouter from './routes/account.routes.js';
+import articlesRouter from './routes/articles.routes.js';
+import newsRouter from './routes/news.routes.js';
+import uploadsRouter from './routes/uploads.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
 
 const app = express();
 
@@ -36,10 +42,12 @@ app.use('/api/team',      authMiddleware, teamRouter);      // Step 5
 app.use('/api/orders',    ordersRouter);                   // Step 6 — auth inside router
 app.use('/api/payments',  paymentsRouter);                 // Step 6 — auth inside router
 app.use('/api/commissions', commissionsRouter);             // Step 7 — auth inside router
-//  app.use('/api/analytics', authMiddleware, analyticsRouter);                // Step 7
-//  app.use('/api/account',   authMiddleware, accountRouter);                  // Step 7
-//  app.use('/api/articles',  authMiddleware, articlesRouter);                 // Step 8
-//  app.use('/api/news',      authMiddleware, newsRouter);                     // Step 8
+app.use('/api/analytics', analyticsRouter);                 // Step 8 — auth inside router
+app.use('/api/account',   accountRouter);                   // Step 8 — auth inside router
+app.use('/api/articles',  articlesRouter);                  // Step 9 — auth inside router
+app.use('/api/news',      newsRouter);                      // Step 9 — auth inside router
+app.use('/api/uploads',   uploadsRouter);                   // Step 9 — auth inside router
+app.use('/api/dashboard',  dashboardRouter);                 // Step 10 — auth inside router
 
 // ── Centralised error handler (must be last) ──────────────────────────────────
 

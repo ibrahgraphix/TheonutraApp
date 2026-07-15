@@ -20,15 +20,15 @@ import { z } from 'zod';
 
 import { Button, Input, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { createSellerAccount, getProductCountries, searchDistributors } from '../../services/api';
-import type { Distributor } from '../../types';
+import { createSellerAccount, getCountries, searchDistributors } from '../../services/api';
+import type { Country, Distributor } from '../../types';
 import { colors, radius, spacing, typography } from '../../theme';
 
 const createSellerSchema = z
   .object({
     fullName: z.string().trim().min(2, 'Enter the seller full name'),
     phone: z.string().trim().min(6, 'Enter a phone number'),
-    country: z.string().min(1, 'Choose a country'),
+    countryId: z.string().min(1, 'Choose a country'),
     referredBy: z.string().optional().nullable(),
     distributorId: z.string().trim().min(3, 'Enter a Distributor ID'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -49,7 +49,7 @@ type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'AddSeller
 
 export function AddSellerScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [countries, setCountries] = useState<string[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [allDistributors, setAllDistributors] = useState<Distributor[]>([]);
   const [countryModalOpen, setCountryModalOpen] = useState(false);
   const [recruiterModalOpen, setRecruiterModalOpen] = useState(false);
@@ -74,7 +74,7 @@ export function AddSellerScreen() {
     defaultValues: {
       fullName: '',
       phone: '',
-      country: '',
+      countryId: '',
       referredBy: '',
       distributorId: '',
       password: '',
@@ -82,29 +82,34 @@ export function AddSellerScreen() {
     },
   });
 
-  const selectedCountry = watch('country');
+  const selectedCountryId = watch('countryId');
   const selectedRecruiterId = watch('referredBy');
   const distributorIdValue = watch('distributorId');
   const passwordValue = watch('password');
   const confirmPasswordValue = watch('confirmPassword');
+  const selectedCountryLabel =
+    countries.find((c) => c.id === selectedCountryId)?.name ?? 'Select country';
 
   useEffect(() => {
     const loadOptions = async () => {
-      const [countryOptions, distributors] = await Promise.all([
-        getProductCountries(),
-        searchDistributors(''),
-      ]);
-      setCountries(countryOptions);
-      setAllDistributors(distributors);
-      if (!countryOptions.length) return;
-      if (!selectedCountry) {
-        setValue('country', countryOptions[0], { shouldValidate: true });
+      try {
+        const [countryOptions, distributors] = await Promise.all([
+          getCountries(),
+          searchDistributors(''),
+        ]);
+        setCountries(countryOptions);
+        setAllDistributors(distributors);
+        if (!countryOptions.length) return;
+        if (!selectedCountryId) {
+          setValue('countryId', countryOptions[0].id, { shouldValidate: true });
+        }
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'Failed to load form options.');
       }
     };
 
     void loadOptions();
-  }, [selectedCountry, setValue]);
-
+  }, [selectedCountryId, setValue]);
   useEffect(() => {
     const normalized = distributorIdValue.trim().toUpperCase();
     if (!normalized) {
@@ -166,7 +171,7 @@ export function AddSellerScreen() {
       const created = await createSellerAccount({
         fullName: data.fullName.trim(),
         phone: data.phone.trim(),
-        country: data.country,
+        country: data.countryId,
         referredBy: data.referredBy?.trim() ? data.referredBy : null,
         distributorId: data.distributorId.trim().toUpperCase(),
         password: data.password,
@@ -179,7 +184,7 @@ export function AddSellerScreen() {
       setAllDistributors((current) => [...current, created]);
       setValue('fullName', '');
       setValue('phone', '');
-      setValue('country', countries[0] ?? '', { shouldValidate: true });
+      setValue('countryId', countries[0]?.id ?? '', { shouldValidate: true });
       setValue('referredBy', '', { shouldValidate: true });
       setValue('distributorId', '');
       setValue('password', '');
@@ -248,10 +253,12 @@ export function AddSellerScreen() {
                 onPress={() => setCountryModalOpen(true)}
                 style={styles.selectTrigger}
               >
-                <Text style={styles.selectText}>{selectedCountry || 'Select country'}</Text>
+                <Text style={styles.selectText}>{selectedCountryLabel}</Text>
                 <Text style={styles.chevron}>▼</Text>
               </Pressable>
-              {errors.country?.message ? <Text style={styles.error}>{errors.country.message}</Text> : null}
+              {errors.countryId?.message ? (
+                <Text style={styles.error}>{errors.countryId.message}</Text>
+              ) : null}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -331,18 +338,27 @@ export function AddSellerScreen() {
         <Pressable onPress={() => setCountryModalOpen(false)} style={styles.modalOverlay}>
           <Pressable onPress={(event) => event.stopPropagation()} style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Select country</Text>
-            {countries.map((country) => (
-              <Pressable
-                key={country}
-                onPress={() => {
-                  setValue('country', country, { shouldValidate: true });
-                  setCountryModalOpen(false);
-                }}
-                style={styles.optionRow}
-              >
-                <Text style={styles.optionText}>{country}</Text>
-              </Pressable>
-            ))}
+            {countries.length === 0 ? (
+              <Text style={styles.optionSubText}>
+                No countries in the database yet. Add one under Manage → Countries.
+              </Text>
+            ) : (
+              countries.map((country) => (
+                <Pressable
+                  key={country.id}
+                  onPress={() => {
+                    setValue('countryId', country.id, { shouldValidate: true });
+                    setCountryModalOpen(false);
+                  }}
+                  style={styles.optionRow}
+                >
+                  <Text style={styles.optionText}>{country.name}</Text>
+                  <Text style={styles.optionSubText}>
+                    {country.isoCode} · {country.currencyCode}
+                  </Text>
+                </Pressable>
+              ))
+            )}
           </Pressable>
         </Pressable>
       </Modal>

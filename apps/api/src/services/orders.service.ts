@@ -224,9 +224,12 @@ export async function getOrderById(
 }
 
 /**
- * Lists all orders for a buyer.
+ * Lists all orders for a buyer with optional pagination.
  */
-export async function listMyOrders(buyerId: string): Promise<Order[]> {
+export async function listMyOrders(buyerId: string, page: number = 1, limit: number = 20): Promise<Order[]> {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
@@ -242,7 +245,8 @@ export async function listMyOrders(buyerId: string): Promise<Order[]> {
       )
     `)
     .eq('buyer_id', buyerId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     throw new ApiError(500, `Failed to fetch orders: ${error.message}`);

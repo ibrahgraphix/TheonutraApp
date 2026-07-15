@@ -13,7 +13,9 @@
     "test:catalog": "tsx scripts/testCatalog.ts",
     "test:team": "tsx scripts/testTeam.ts",
     "test:orders": "tsx scripts/testOrdersPayments.ts",
-    "test:commissions": "tsx scripts/testCommissions.ts"
+    "test:commissions": "tsx scripts/testCommissions.ts",
+    "test:analytics": "tsx scripts/testAnalyticsAccount.ts",
+    "test:content": "tsx scripts/testContentCloudinary.ts"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,7 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.110.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

@@ -40,10 +40,33 @@ export async function createSeller(
     throw new ApiError(403, 'Only admins can assign staff roles');
   }
 
-  // 3. Generate synthetic internal email
+  // 3. Resolve countryId: UUID, ISO code (e.g. KE), or country name (e.g. Kenya)
+  let countryId = input.countryId;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(countryId)) {
+    countryId = await resolveCountryId(countryId);
+  }
+
+  // 4. Resolve referredBy: if provided and not a UUID, look up by distributor_id
+  let referredBy = input.referredBy;
+  if (referredBy && !uuidRegex.test(referredBy)) {
+    // Assume it's a distributor ID, look up the UUID
+    const { data: referrer, error: referrerError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('distributor_id', referredBy)
+      .single();
+    
+    if (referrerError || !referrer) {
+      throw new ApiError(400, `Invalid referrer distributor ID: ${referredBy}`);
+    }
+    referredBy = referrer.id;
+  }
+
+  // 5. Generate synthetic internal email
   const email = distributorIdToEmail(input.distributorId);
 
-  // 4. Create auth user via Supabase Auth Admin API
+  // 6. Create auth user via Supabase Auth Admin API
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password: input.password,
@@ -57,15 +80,15 @@ export async function createSeller(
 
   const userId = authData.user.id;
 
-  // 5. Create the profile row using the upsert_profile RPC helper to bypass PostgREST cache issues
+  // 7. Create the profile row using the upsert_profile RPC helper to bypass PostgREST cache issues
   const { error: profileError } = await supabase.rpc('upsert_profile', {
     p_id: userId,
     p_distributor_id: input.distributorId,
     p_full_name: input.fullName,
     p_phone_number: input.phoneNumber,
     p_role: finalRole,
-    p_country_id: input.countryId,
-    p_referred_by: input.referredBy || null,
+    p_country_id: countryId,
+    p_referred_by: referredBy || null,
     p_is_active: true,
     p_must_change_password: true, // Forces reset on first login
     p_created_by: adminUserId,
@@ -77,7 +100,7 @@ export async function createSeller(
     throw new ApiError(500, `Failed to create seller profile: ${profileError.message}`);
   }
 
-  // 6. Retrieve and shape the completed profile
+  // 8. Retrieve and shape the completed profile
   return getSellerById(userId);
 }
 
@@ -230,6 +253,42 @@ export async function resetSellerPassword(
   if (profileError) {
     throw new ApiError(500, `Failed to update profile must_change_password flag: ${profileError.message}`);
   }
+}
+
+/**
+ * Resolves a country reference (ISO code or display name) to its UUID.
+ */
+async function resolveCountryId(countryRef: string): Promise<string> {
+  const trimmed = countryRef.trim();
+  if (!trimmed) {
+    throw new ApiError(400, 'countryId is required');
+  }
+
+  // Prefer ISO code match (e.g. KE, TZ)
+  const { data: byIso } = await supabase
+    .from('countries')
+    .select('id')
+    .eq('is_active', true)
+    .eq('iso_code', trimmed.toUpperCase())
+    .maybeSingle();
+
+  if (byIso?.id) {
+    return byIso.id as string;
+  }
+
+  // Fall back to case-insensitive name match (e.g. Kenya)
+  const { data: byName } = await supabase
+    .from('countries')
+    .select('id')
+    .eq('is_active', true)
+    .ilike('name', trimmed)
+    .maybeSingle();
+
+  if (byName?.id) {
+    return byName.id as string;
+  }
+
+  throw new ApiError(400, `Invalid country code: ${countryRef}`);
 }
 
 /**

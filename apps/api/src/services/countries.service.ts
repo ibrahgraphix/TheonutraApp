@@ -40,9 +40,9 @@ export async function createCountry(input: {
   const { data, error } = await supabase
     .from('countries')
     .insert({
-      name: input.name,
-      iso_code: input.isoCode,
-      currency_code: input.currencyCode,
+      name: input.name.trim(),
+      iso_code: input.isoCode.trim().toUpperCase(),
+      currency_code: input.currencyCode.trim().toUpperCase(),
       is_active: true,
     })
     .select('id, name, iso_code, currency_code, is_active, created_at')

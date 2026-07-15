@@ -3,9 +3,18 @@ import { z } from 'zod';
 // ── Countries ────────────────────────────────────────────────────────────────
 
 export const CreateCountrySchema = z.object({
-  name:         z.string().min(1, 'name is required'),
-  isoCode:      z.string().min(2, 'isoCode must be at least 2 characters').max(3, 'isoCode must be at most 3 characters'),
-  currencyCode: z.string().min(3, 'currencyCode must be exactly 3 characters').max(3, 'currencyCode must be exactly 3 characters'),
+  name: z.string().trim().min(1, 'name is required'),
+  isoCode: z
+    .string()
+    .trim()
+    .min(2, 'isoCode must be at least 2 characters')
+    .max(3, 'isoCode must be at most 3 characters')
+    .transform((v) => v.toUpperCase()),
+  currencyCode: z
+    .string()
+    .trim()
+    .length(3, 'currencyCode must be exactly 3 characters')
+    .transform((v) => v.toUpperCase()),
 });
 
 export const UpdateCountrySchema = z.object({

@@ -52,20 +52,34 @@ export function ShopListScreen() {
     }
   }, [distributor, browseCountry, setBrowseCountry]);
 
+  useEffect(() => {
+    getProductCountries().then((list) => {
+      setCountries(list);
+      if (!browseCountry && list.length > 0) {
+        const preferred =
+          (distributor?.country && list.includes(distributor.country)
+            ? distributor.country
+            : list[0]) ?? '';
+        if (preferred) setBrowseCountry(preferred);
+      }
+    });
+  }, [browseCountry, distributor?.country, setBrowseCountry]);
+
   const loadProducts = useCallback(async () => {
     if (!activeCountry) return;
     setLoading(true);
-    const data = await getProducts(activeCountry);
-    setProducts(data);
-    setLoading(false);
+    try {
+      const data = await getProducts(activeCountry);
+      setProducts(data);
+    } catch {
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
   }, [activeCountry]);
 
   useEffect(() => {
-    getProductCountries().then(setCountries);
-  }, []);
-
-  useEffect(() => {
-    loadProducts();
+    void loadProducts();
   }, [loadProducts]);
 
   return (
