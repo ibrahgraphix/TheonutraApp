@@ -1,3 +1,4 @@
+//authstore.ts
 import { create } from 'zustand';
 
 import * as api from '../services/api';

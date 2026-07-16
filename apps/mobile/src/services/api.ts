@@ -100,7 +100,7 @@ export async function login(
       mustChangePassword: boolean;
     };
   };
-  
+
   setAuthToken(data.token);
 
   return {
@@ -194,14 +194,39 @@ export async function getTeam(distributorId: string): Promise<TeamMember[]> {
   }
 
   const flatTeam = await response.json();
-  
+
   // Transform flat list to nested tree structure
+  return buildTeamTree(flatTeam);
+}
+
+/**
+ * Staff-only: fetch ANY distributor's full multi-level downline as a nested
+ * tree, via the staff-only `/api/team/:id` endpoint. This is what powers
+ * Manage → Distributors → tap a distributor → chain view — admin no longer
+ * has a separate "Team" tab, so this is the only way staff view a downline
+ * that isn't their own.
+ */
+export async function getTeamForDistributor(distributorId: string): Promise<TeamMember[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/team/${encodeURIComponent(distributorId)}`,
+    {
+      headers: {
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseApiError(await response.text(), 'Failed to fetch distributor team'));
+  }
+
+  const flatTeam = await response.json();
   return buildTeamTree(flatTeam);
 }
 
 function buildTeamTree(flatTeam: any[]): TeamMember[] {
   const memberMap = new Map<string, any>();
-  
+
   // First pass: create map of all members
   for (const member of flatTeam) {
     memberMap.set(member.memberId, {
@@ -223,13 +248,13 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
       children: [],
     });
   }
-  
+
   // Second pass: build hierarchy
   const roots: TeamMember[] = [];
   for (const member of flatTeam) {
     const node = memberMap.get(member.memberId);
     if (!node) continue;
-    
+
     if (member.referredBy && memberMap.has(member.referredBy)) {
       const parent = memberMap.get(member.referredBy);
       parent.children.push(node);
@@ -238,7 +263,7 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
       roots.push(node);
     }
   }
-  
+
   // Calculate team sales (sum of all descendants' personal sales)
   function calculateTeamSales(node: TeamMember): number {
     let total = node.personalSales;
@@ -248,11 +273,11 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
     node.teamSales = total;
     return total;
   }
-  
+
   for (const root of roots) {
     calculateTeamSales(root);
   }
-  
+
   return roots;
 }
 
@@ -647,10 +672,10 @@ export async function getMonthlyAnalysis(
   distributorId: string,
   month?: string,
 ): Promise<MonthlyAnalysis> {
-  const url = month 
+  const url = month
     ? `${API_BASE_URL}/api/analytics/overview?month=${encodeURIComponent(month)}`
     : `${API_BASE_URL}/api/analytics/overview`;
-  
+
   const response = await fetch(url, {
     headers: {
       Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
@@ -863,11 +888,11 @@ export async function getAllDistributors(): Promise<Distributor[]> {
       'Authorization': currentAuthToken ? `Bearer ${currentAuthToken}` : '',
     }
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch sellers');
   }
-  
+
   const sellers = await response.json() as any[];
   return sellers.map(s => ({
     id: s.id,
@@ -886,17 +911,17 @@ export async function searchDistributors(query: string): Promise<Distributor[]> 
   if (!q) {
     return getAllDistributors();
   }
-  
+
   const response = await fetch(`${API_BASE_URL}/api/sellers?search=${encodeURIComponent(q)}`, {
     headers: {
       'Authorization': currentAuthToken ? `Bearer ${currentAuthToken}` : '',
     }
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to search sellers');
   }
-  
+
   const sellers = await response.json() as any[];
   return sellers.map(s => ({
     id: s.id,

@@ -1,3 +1,4 @@
+//AddSellerScreen
 import * as Clipboard from 'expo-clipboard';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation } from '@react-navigation/native';
@@ -154,13 +155,13 @@ export function AddSellerScreen() {
 
   const filteredRecruiters = recruiterSearch.trim()
     ? allDistributors.filter((item) => {
-        const search = recruiterSearch.toLowerCase();
-        return (
-          item.fullName.toLowerCase().includes(search) ||
-          item.distributorId.toLowerCase().includes(search) ||
-          item.country.toLowerCase().includes(search)
-        );
-      })
+      const search = recruiterSearch.toLowerCase();
+      return (
+        item.fullName.toLowerCase().includes(search) ||
+        item.distributorId.toLowerCase().includes(search) ||
+        item.country.toLowerCase().includes(search)
+      );
+    })
     : allDistributors;
 
   const onSubmit = async (data: CreateSellerForm) => {

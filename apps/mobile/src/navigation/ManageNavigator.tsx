@@ -4,6 +4,7 @@ import { AddCountryScreen } from '../screens/manage/AddCountryScreen';
 import { AddEditProductScreen } from '../screens/manage/AddEditProductScreen';
 import { AddSellerScreen } from '../screens/manage/AddSellerScreen';
 import { CountryListScreen } from '../screens/manage/CountryListScreen';
+import { DistributorDetailScreen } from '../screens/manage/DistributorDetailScreen';
 import { DistributorListScreen } from '../screens/manage/DistributorListScreen';
 import { ManageHomeScreen } from '../screens/manage/ManageHomeScreen';
 import { PendingPaymentsScreen } from '../screens/manage/PendingPaymentsScreen';
@@ -18,6 +19,7 @@ export function ManageNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ManageHome" component={ManageHomeScreen} />
       <Stack.Screen name="DistributorList" component={DistributorListScreen} />
+      <Stack.Screen name="DistributorDetail" component={DistributorDetailScreen} />
       <Stack.Screen name="AddSeller" component={AddSellerScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="CountryList" component={CountryListScreen} />

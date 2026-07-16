@@ -1,3 +1,4 @@
+//CountryListScreen
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
@@ -14,7 +15,14 @@ type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'CountryLi
 
 export function CountryListScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const isAdmin = useAuthStore((s) => s.distributor?.role === 'admin');
+  // Match the staff check used everywhere else in the app (backend's
+  // requireStaff middleware, MainNavigator's Manage tab) — both 'admin'
+  // and 'company_staff' count as staff. Narrowing to 'admin' only here
+  // was why the + Add button silently never showed for company_staff logins.
+  const isStaff = useAuthStore((s) => {
+    const role = s.distributor?.role;
+    return role === 'admin' || role === 'company_staff';
+  });
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +51,7 @@ export function CountryListScreen() {
       <ShopHeader
         onBack={() => navigation.goBack()}
         rightAction={
-          isAdmin ? (
+          isStaff ? (
             <Pressable onPress={() => navigation.navigate('AddCountry')} style={styles.headerAction}>
               <Text style={styles.headerActionText}>+ Add</Text>
             </Pressable>
@@ -66,7 +74,7 @@ export function CountryListScreen() {
         <Text style={styles.empty}>{error}</Text>
       ) : countries.length === 0 ? (
         <Text style={styles.empty}>
-          {isAdmin
+          {isStaff
             ? 'No countries yet. Tap + Add to create one.'
             : 'No countries yet. Ask an admin to add a country.'}
         </Text>
@@ -105,6 +113,6 @@ const styles = StyleSheet.create({
   },
   headerActionText: {
     ...typography.label,
-    color: colors.primary,
+    color: colors.textOnPrimary,
   },
 });

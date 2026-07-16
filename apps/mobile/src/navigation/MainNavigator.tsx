@@ -32,14 +32,20 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
 export function MainNavigator() {
   const insets = useSafeAreaInsets();
   const distributor = useAuthStore((s) => s.distributor);
-  const showManage =
+  const isStaff =
     distributor?.role === 'admin' || distributor?.role === 'company_staff';
+
+  // Staff manage the org through Manage → Distributors (tap a distributor to
+  // see their chain) instead of a standalone "My Team" tab — that view only
+  // makes sense for a regular seller looking at their own downline.
+  const showManage = isStaff;
+  const showTeam = !isStaff;
 
   const bottomInset = Math.max(insets.bottom, spacing.sm);
 
   return (
     <Tab.Navigator
-      key={showManage ? 'with-manage' : 'without-manage'}
+      key={[showTeam, showManage].join('-')}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.tabActive,
@@ -58,7 +64,7 @@ export function MainNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Shop" component={ShopNavigator} />
-      <Tab.Screen name="Team" component={TeamNavigator} />
+      {showTeam ? <Tab.Screen name="Team" component={TeamNavigator} /> : null}
       <Tab.Screen name="Account" component={AccountScreen} />
       {showManage ? (
         <Tab.Screen name="Manage" component={ManageNavigator} />

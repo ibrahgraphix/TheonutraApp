@@ -52,6 +52,7 @@ export function DistributorListScreen() {
         <Text style={styles.count}>
           {loading ? 'Loading…' : `${distributors.length} seller${distributors.length !== 1 ? 's' : ''}`}
         </Text>
+        <Text style={styles.hint}>Tap a distributor to view their chain</Text>
       </View>
 
       {loading ? (
@@ -66,6 +67,12 @@ export function DistributorListScreen() {
           renderItem={({ item }) => (
             <ListItem
               left={<Avatar name={item.fullName} size={40} />}
+              onPress={() =>
+                navigation.navigate('DistributorDetail', {
+                  distributorId: item.id,
+                  distributorName: item.fullName,
+                })
+              }
               right={
                 <View style={styles.itemActions}>
                   <Badge label={item.role.replace('_', ' ')} variant="neutral" />
@@ -106,6 +113,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   count: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  hint: {
     ...typography.caption,
     color: colors.textSecondary,
   },
