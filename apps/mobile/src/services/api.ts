@@ -239,7 +239,7 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
         country: member.countryId,
         countryId: member.countryId,
         referredBy: member.referredBy,
-        joinDate: '',
+        joinDate: member.createdAt ?? '',
       },
       level: member.level,
       personalSales: member.monthlySales,
@@ -654,6 +654,31 @@ export async function getNews(): Promise<NewsPost[]> {
   return rows.map(mapApiNews);
 }
 
+function mapApiArticle(row: {
+  id: string;
+  title: string;
+  body: string;
+  coverImageUrl: string | null;
+  createdAt: string;
+}): Article {
+  const body = row.body ?? '';
+  // Backend only stores one `body` field — no separate summary/category/author
+  // columns exist yet. Derive a short summary the same way News does, and use
+  // safe placeholders for the two fields the DB genuinely doesn't have.
+  const summary = body.length > 160 ? `${body.slice(0, 157).trimEnd()}…` : body;
+
+  return {
+    id: row.id,
+    title: row.title,
+    summary,
+    content: body,
+    imageUrl: row.coverImageUrl ?? undefined,
+    publishedAt: row.createdAt,
+    category: 'General', // placeholder — no `category` column in the DB yet
+    author: '', // placeholder — no author-name resolution wired up yet
+  };
+}
+
 export async function getArticles(): Promise<Article[]> {
   const response = await fetch(`${API_BASE_URL}/api/articles`, {
     headers: {
@@ -665,7 +690,15 @@ export async function getArticles(): Promise<Article[]> {
     throw new Error(parseApiError(await response.text(), 'Failed to fetch articles'));
   }
 
-  return await response.json();
+  const rows = (await response.json()) as Array<{
+    id: string;
+    title: string;
+    body: string;
+    coverImageUrl: string | null;
+    createdAt: string;
+  }>;
+
+  return rows.map(mapApiArticle);
 }
 
 export async function getMonthlyAnalysis(
@@ -725,7 +758,15 @@ export async function getArticleById(articleId: string): Promise<Article | null>
     throw new Error(parseApiError(await response.text(), 'Failed to fetch article'));
   }
 
-  return await response.json();
+  const row = (await response.json()) as {
+    id: string;
+    title: string;
+    body: string;
+    coverImageUrl: string | null;
+    createdAt: string;
+  };
+
+  return mapApiArticle(row);
 }
 
 export async function getNewsById(newsId: string): Promise<NewsPost | null> {
@@ -1153,6 +1194,46 @@ export async function createNewsPost(
   };
 
   return mapApiNews(row);
+}
+
+export async function createArticle(
+  article: Omit<Article, 'id' | 'publishedAt' | 'category' | 'author'>,
+): Promise<Article> {
+  // Same pattern as createNewsPost: the backend only has one `body` field,
+  // so combine summary + content into it, and split back out on read via
+  // mapApiArticle's truncation-based summary derivation.
+  const body =
+    article.summary?.trim() && article.content?.trim()
+      ? `${article.summary.trim()}\n\n${article.content.trim()}`
+      : article.content?.trim() || article.summary?.trim() || '';
+
+  const response = await fetch(`${API_BASE_URL}/api/articles`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({
+      title: article.title.trim(),
+      body,
+      coverImageUrl: article.imageUrl ?? null,
+      isPublished: true,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseApiError(await response.text(), 'Failed to publish article'));
+  }
+
+  const row = (await response.json()) as {
+    id: string;
+    title: string;
+    body: string;
+    coverImageUrl: string | null;
+    createdAt: string;
+  };
+
+  return mapApiArticle(row);
 }
 
 export async function getPendingPayments(): Promise<Payment[]> {

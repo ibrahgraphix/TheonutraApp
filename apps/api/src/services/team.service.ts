@@ -5,18 +5,20 @@ import { ApiError } from '../middleware/error.middleware.js';
 
 export interface TeamMember {
   /** profiles.id of this downline member */
-  memberId:      string;
+  memberId: string;
   distributorId: string;
-  fullName:      string;
-  phoneNumber:   string;
-  countryId:     string;
+  fullName: string;
+  phoneNumber: string;
+  countryId: string;
   /** profiles.id of who recruited this member */
-  referredBy:    string | null;
-  isActive:      boolean;
+  referredBy: string | null;
+  isActive: boolean;
   /** 1 = direct recruit, 2 = their recruit, etc. */
-  level:         number;
+  level: number;
   /** Aggregate personal sales amount this calendar month (0 if none) */
-  monthlySales:  number;
+  monthlySales: number;
+  /** ISO timestamp this member's account was created — powers "Joined <date>" */
+  createdAt: string;
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -24,7 +26,8 @@ export interface TeamMember {
 /**
  * Fetches all rows from `downline_tree` for the given root distributor UUID,
  * optionally limited to a specific level, then enriches them with:
- *  - extra profile fields (phone, country, is_active) via a bulk profile fetch
+ *  - extra profile fields (phone, country, is_active, created_at) via a bulk
+ *    profile fetch
  *  - current-month personal sales aggregated from the `sales` table
  */
 async function fetchTeam(
@@ -55,28 +58,32 @@ async function fetchTeam(
 
   const memberIds = rows.map((r) => r.member_id as string);
 
-  // ── 2. Bulk-fetch profile extras (phone, country, is_active) ──────────────
+  // ── 2. Bulk-fetch profile extras (phone, country, is_active, created_at) ──
   const { data: profiles, error: profileError } = await supabase
     .from('profiles')
-    .select('id, phone_number, country_id, is_active')
+    .select('id, phone_number, country_id, is_active, created_at')
     .in('id', memberIds);
 
   if (profileError) {
     throw new ApiError(500, `Failed to fetch team profiles: ${profileError.message}`);
   }
 
-  const profileMap = new Map<string, { phoneNumber: string; countryId: string; isActive: boolean }>();
+  const profileMap = new Map<
+    string,
+    { phoneNumber: string; countryId: string; isActive: boolean; createdAt: string }
+  >();
   for (const p of profiles ?? []) {
     profileMap.set(p.id as string, {
       phoneNumber: p.phone_number as string,
-      countryId:   p.country_id  as string,
-      isActive:    p.is_active   as boolean,
+      countryId: p.country_id as string,
+      isActive: p.is_active as boolean,
+      createdAt: p.created_at as string,
     });
   }
 
   // ── 3. Aggregate current-month personal sales for each member ─────────────
   //  Use the first day of the current UTC month as the lower bound.
-  const now       = new Date();
+  const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
   const { data: salesRows, error: salesError } = await supabase
@@ -100,15 +107,16 @@ async function fetchTeam(
   return rows.map((r) => {
     const profile = profileMap.get(r.member_id as string);
     return {
-      memberId:      r.member_id      as string,
+      memberId: r.member_id as string,
       distributorId: r.distributor_id as string,
-      fullName:      r.full_name      as string,
-      phoneNumber:   profile?.phoneNumber ?? '',
-      countryId:     profile?.countryId   ?? '',
-      referredBy:    (r.referred_by   as string) ?? null,
-      isActive:      profile?.isActive    ?? true,
-      level:         r.level          as number,
-      monthlySales:  salesMap.get(r.member_id as string) ?? 0,
+      fullName: r.full_name as string,
+      phoneNumber: profile?.phoneNumber ?? '',
+      countryId: profile?.countryId ?? '',
+      referredBy: (r.referred_by as string) ?? null,
+      isActive: profile?.isActive ?? true,
+      level: r.level as number,
+      monthlySales: salesMap.get(r.member_id as string) ?? 0,
+      createdAt: profile?.createdAt ?? '',
     };
   });
 }

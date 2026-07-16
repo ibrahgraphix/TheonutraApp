@@ -1,3 +1,4 @@
+//HomeScreen
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -44,6 +45,11 @@ function formatCurrency(amount: number, currency: string) {
 export function HomeScreen() {
   const navigation = useNavigation<HomeNavigationProp>();
   const distributor = useAuthStore((state) => state.distributor);
+  // Same staff check used everywhere else (requireStaff on the backend,
+  // MainNavigator's Manage tab, CountryListScreen's + Add button) —
+  // admin and company_staff both count as staff.
+  const isStaff =
+    distributor?.role === 'admin' || distributor?.role === 'company_staff';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,11 +146,19 @@ export function HomeScreen() {
             label="Shop"
             onPress={() => navigation.navigate('Shop')}
           />
-          <ShortcutButton
-            icon="👥"
-            label="Team"
-            onPress={() => navigation.navigate('Team')}
-          />
+          {isStaff ? (
+            <ShortcutButton
+              icon="👥"
+              label="Distributors"
+              onPress={() => navigation.navigate('Manage', { screen: 'DistributorList' })}
+            />
+          ) : (
+            <ShortcutButton
+              icon="👥"
+              label="Team"
+              onPress={() => navigation.navigate('Team')}
+            />
+          )}
         </View>
         <View style={styles.shortcutsGrid}>
           <ShortcutButton
