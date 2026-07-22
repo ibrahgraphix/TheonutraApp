@@ -3,14 +3,14 @@ import { supabase } from '../src/config/supabase.js';
 
 async function check() {
   const { error } = await supabase
-    .from('payments')
-    .select('provider, phone_number')
+    .from('withdrawal_requests')
+    .select('id, distributor_id, amount, method, payout_details, status, requested_at, reviewed_by, reviewed_at, notes')
     .limit(1);
 
   if (error) {
-    console.log('Error selecting provider and phone_number:', error.message);
+    console.log('Error selecting columns:', error.message);
   } else {
-    console.log('Success! provider and phone_number columns exist.');
+    console.log('All expected columns exist in withdrawal_requests!');
   }
 }
 

@@ -15,7 +15,12 @@
     "test:orders": "tsx scripts/testOrdersPayments.ts",
     "test:commissions": "tsx scripts/testCommissions.ts",
     "test:analytics": "tsx scripts/testAnalyticsAccount.ts",
-    "test:content": "tsx scripts/testContentCloudinary.ts"
+    "test:content": "tsx scripts/testContentCloudinary.ts",
+    "test:ranks": "tsx scripts/testRanksPV.ts",
+    "test:customer-sales": "tsx scripts/testCustomerSales.ts",
+    "test:team-bonus": "tsx scripts/testTeamBonus.ts",
+    "test:wallet": "tsx scripts/testWallet.ts",
+    "test:manual-bonus": "tsx scripts/testManualBonus.ts"
   },
   "keywords": [],
   "author": "",

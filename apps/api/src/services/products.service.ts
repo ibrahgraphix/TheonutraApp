@@ -6,9 +6,10 @@ import { deleteCloudinaryAsset } from './uploads.service.js';
 // ── Shared shapes ─────────────────────────────────────────────────────────────
 
 export interface ProductPrice {
-  countryId:   string;
-  price:       number;
-  isAvailable: boolean;
+  countryId:       string;
+  price:           number;
+  distributorPrice: number;
+  isAvailable:     boolean;
 }
 
 export interface Product {
@@ -17,11 +18,13 @@ export interface Product {
   description: string | null;
   imageUrl:    string | null;
   isActive:    boolean;
+  pv:          number;
   createdAt:   string;
   updatedAt:   string;
   // Populated when a countryId filter is applied
-  price?:       number;
-  currencyCode?: string;
+  price?:           number;
+  distributorPrice?: number;
+  currencyCode?:     string;
 }
 
 // ── Public service functions ──────────────────────────────────────────────────
@@ -39,10 +42,12 @@ export async function getProductsByCountry(countryId: string): Promise<Product[]
       description,
       image_url,
       is_active,
+      pv,
       created_at,
       updated_at,
       product_prices!inner (
         price,
+        distributor_price,
         is_available,
         country_id,
         countries (
@@ -76,10 +81,12 @@ export async function getProductById(id: string, countryId: string): Promise<Pro
       description,
       image_url,
       is_active,
+      pv,
       created_at,
       updated_at,
       product_prices!inner (
         price,
+        distributor_price,
         is_available,
         country_id,
         countries (
@@ -121,8 +128,9 @@ export async function createProduct(
       image_url:   input.imageUrl ?? null,
       is_active:   true,
       created_by:  staffUserId,
+      pv:          input.pv ?? 0,
     })
-    .select('id, name, description, image_url, is_active, created_at, updated_at')
+    .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
     .single();
 
   if (productError || !product) {
@@ -131,10 +139,11 @@ export async function createProduct(
 
   // 2. Insert price rows
   const priceRows = input.prices.map((p) => ({
-    product_id:   product.id,
-    country_id:   p.countryId,
-    price:        p.price,
-    is_available: p.isAvailable,
+    product_id:        product.id,
+    country_id:        p.countryId,
+    price:             p.price,
+    distributor_price: p.distributorPrice,
+    is_available:      p.isAvailable,
   }));
 
   const { error: priceError } = await supabase
@@ -162,7 +171,7 @@ export async function updateProduct(
   // 1. Fetch existing product to get old imageUrl before updating
   const { data: existingProduct, error: fetchError } = await supabase
     .from('products')
-    .select('id, name, description, image_url, is_active, created_at, updated_at')
+    .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
     .eq('id', id)
     .maybeSingle();
 
@@ -181,6 +190,7 @@ export async function updateProduct(
   if (input.name !== undefined)        productPatch['name']        = input.name;
   if (input.description !== undefined) productPatch['description'] = input.description;
   if (input.imageUrl !== undefined)    productPatch['image_url']   = input.imageUrl;
+  if (input.pv !== undefined)          productPatch['pv']          = input.pv;
 
   let product: Record<string, unknown> | null = null;
 
@@ -189,7 +199,7 @@ export async function updateProduct(
       .from('products')
       .update(productPatch)
       .eq('id', id)
-      .select('id, name, description, image_url, is_active, created_at, updated_at')
+      .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
       .single();
 
     if (error) {
@@ -206,10 +216,11 @@ export async function updateProduct(
   // 3. Upsert price rows if provided (conflict on product_id + country_id)
   if (input.prices && input.prices.length > 0) {
     const priceRows = input.prices.map((p) => ({
-      product_id:   id,
-      country_id:   p.countryId,
-      price:        p.price,
-      is_available: p.isAvailable,
+      product_id:        id,
+      country_id:        p.countryId,
+      price:             p.price,
+      distributor_price: p.distributorPrice,
+      is_available:      p.isAvailable,
     }));
 
     const { error: priceError } = await supabase
@@ -276,6 +287,7 @@ function mapProduct(row: Record<string, unknown>): Product {
     description: (row['description'] as string) ?? null,
     imageUrl:    (row['image_url'] as string) ?? null,
     isActive:    row['is_active'] as boolean,
+    pv:          Number(row['pv'] ?? 0),
     createdAt:   row['created_at'] as string,
     updatedAt:   row['updated_at'] as string,
   };
@@ -289,9 +301,10 @@ function mapProductWithPrice(row: Record<string, unknown>): Product {
   const priceRow  = Array.isArray(priceRows) ? priceRows[0] : null;
 
   if (priceRow) {
-    base.price       = priceRow['price'] as number;
-    const countryData = priceRow['countries'] as Record<string, unknown> | null;
-    base.currencyCode = countryData?.['currency_code'] as string | undefined;
+    base.price           = priceRow['price'] as number;
+    base.distributorPrice = priceRow['distributor_price'] as number;
+    const countryData     = priceRow['countries'] as Record<string, unknown> | null;
+    base.currencyCode     = countryData?.['currency_code'] as string | undefined;
   }
 
   return base;

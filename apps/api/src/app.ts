@@ -17,8 +17,14 @@ import articlesRouter from './routes/articles.routes.js';
 import newsRouter from './routes/news.routes.js';
 import uploadsRouter from './routes/uploads.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
+import ranksRouter from './routes/ranks.routes.js';
+import customerSalesRouter from './routes/customerSales.routes.js';
+import teamBonusRouter from './routes/teamBonus.routes.js';
+import walletRouter from './routes/wallet.routes.js';
+import manualBonusRouter from './routes/manualBonus.routes.js';
 
 const app = express();
+
 
 // ── Core middleware ────────────────────────────────────────────────────────────
 
@@ -48,6 +54,11 @@ app.use('/api/articles',  articlesRouter);                  // Step 9 — auth i
 app.use('/api/news',      newsRouter);                      // Step 9 — auth inside router
 app.use('/api/uploads',   uploadsRouter);                   // Step 9 — auth inside router
 app.use('/api/dashboard',  dashboardRouter);                 // Step 10 — auth inside router
+app.use('/api/ranks',      ranksRouter);                     // Step 12 — auth inside router
+app.use('/api/customer-sales', customerSalesRouter);         // Step 13 — auth inside router
+app.use('/api/team-bonus',  teamBonusRouter);                // Step 14 — auth inside router
+app.use('/api/wallet',         walletRouter);                   // Step 15 — auth inside router
+app.use('/api/manual-bonuses', manualBonusRouter);               // Step 16 — auth inside router
 
 // ── Centralised error handler (must be last) ──────────────────────────────────
 

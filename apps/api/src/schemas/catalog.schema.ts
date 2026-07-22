@@ -33,9 +33,10 @@ export type UpdateCountryInput = z.infer<typeof UpdateCountrySchema>;
 // ── Products ─────────────────────────────────────────────────────────────────
 
 const PriceEntrySchema = z.object({
-  countryId:   z.string().uuid('countryId must be a valid UUID'),
-  price:       z.number().positive('price must be a positive number'),
-  isAvailable: z.boolean(),
+  countryId:       z.string().uuid('countryId must be a valid UUID'),
+  price:           z.number().positive('price must be a positive number'),
+  distributorPrice: z.number().min(0, 'distributorPrice must be a non-negative number'),
+  isAvailable:     z.boolean(),
 });
 
 export const CreateProductSchema = z.object({
@@ -43,6 +44,7 @@ export const CreateProductSchema = z.object({
   description: z.string().optional(),
   imageUrl:    z.string().url('imageUrl must be a valid URL').optional(),
   prices:      z.array(PriceEntrySchema).min(1, 'At least one price entry is required'),
+  pv:          z.number().min(0).default(0),
 });
 
 export const UpdateProductSchema = z.object({
@@ -50,6 +52,7 @@ export const UpdateProductSchema = z.object({
   description: z.string().optional(),
   imageUrl:    z.string().url().optional(),
   prices:      z.array(PriceEntrySchema).optional(),
+  pv:          z.number().min(0).optional(),
 }).refine(
   (data) => Object.keys(data).length > 0,
   { message: 'At least one field must be provided' },

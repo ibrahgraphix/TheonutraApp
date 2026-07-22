@@ -17,6 +17,7 @@ export interface SellerProfile {
   mustChangePassword: boolean;
   directDownlineCount: number;
   createdAt: string;
+  rankId?: string | null;
 }
 
 /**
@@ -100,6 +101,33 @@ export async function createSeller(
     throw new ApiError(500, `Failed to create seller profile: ${profileError.message}`);
   }
 
+  // Look up starting 'Member' rank
+  const { data: memberRank, error: rankError } = await supabase
+    .from('ranks')
+    .select('id')
+    .eq('name', 'Member')
+    .single();
+
+  if (rankError || !memberRank) {
+    // Clean up profile and auth user
+    await supabase.from('profiles').delete().eq('id', userId);
+    await supabase.auth.admin.deleteUser(userId);
+    throw new ApiError(500, `Failed to look up starting 'Member' rank: ${rankError?.message || 'Not found'}`);
+  }
+
+  // Update the newly created profile with the Member rank ID
+  const { error: rankUpdateError } = await supabase
+    .from('profiles')
+    .update({ rank_id: memberRank.id })
+    .eq('id', userId);
+
+  if (rankUpdateError) {
+    // Clean up
+    await supabase.from('profiles').delete().eq('id', userId);
+    await supabase.auth.admin.deleteUser(userId);
+    throw new ApiError(500, `Failed to assign starting rank: ${rankUpdateError.message}`);
+  }
+
   // 8. Retrieve and shape the completed profile
   return getSellerById(userId);
 }
@@ -173,6 +201,7 @@ export async function listSellers(
     mustChangePassword: p.must_change_password,
     directDownlineCount: downlineCounts[p.id] || 0,
     createdAt: p.created_at,
+    rankId: p.rank_id,
   }));
 }
 
@@ -218,6 +247,7 @@ export async function getSellerById(id: string): Promise<SellerProfile> {
     mustChangePassword: profile.must_change_password,
     directDownlineCount: count || 0,
     createdAt: profile.created_at,
+    rankId: profile.rank_id,
   };
 }
 
