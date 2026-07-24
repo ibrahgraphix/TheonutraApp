@@ -4,7 +4,8 @@ import { ApiError } from '../middleware/error.middleware.js';
 /**
  * Fetches all rows from `downline_tree` for the given root distributor UUID,
  * optionally limited to a specific level, then enriches them with:
- *  - extra profile fields (phone, country, is_active) via a bulk profile fetch
+ *  - extra profile fields (phone, country, is_active, created_at) via a bulk
+ *    profile fetch
  *  - current-month personal sales aggregated from the `sales` table
  */
 async function fetchTeam(distributorId, levelFilter) {
@@ -26,10 +27,10 @@ async function fetchTeam(distributorId, levelFilter) {
         return [];
     }
     const memberIds = rows.map((r) => r.member_id);
-    // ── 2. Bulk-fetch profile extras (phone, country, is_active) ──────────────
+    // ── 2. Bulk-fetch profile extras (phone, country, is_active, created_at) ──
     const { data: profiles, error: profileError } = await supabase
         .from('profiles')
-        .select('id, phone_number, country_id, is_active')
+        .select('id, phone_number, country_id, is_active, created_at')
         .in('id', memberIds);
     if (profileError) {
         throw new ApiError(500, `Failed to fetch team profiles: ${profileError.message}`);
@@ -40,6 +41,7 @@ async function fetchTeam(distributorId, levelFilter) {
             phoneNumber: p.phone_number,
             countryId: p.country_id,
             isActive: p.is_active,
+            createdAt: p.created_at,
         });
     }
     // ── 3. Aggregate current-month personal sales for each member ─────────────
@@ -73,6 +75,7 @@ async function fetchTeam(distributorId, levelFilter) {
             isActive: profile?.isActive ?? true,
             level: r.level,
             monthlySales: salesMap.get(r.member_id) ?? 0,
+            createdAt: profile?.createdAt ?? '',
         };
     });
 }

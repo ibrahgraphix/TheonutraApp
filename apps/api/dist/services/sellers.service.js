@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { isDistributorIdTaken } from '../utils/idValidation.js';
 import { distributorIdToEmail } from '../utils/distributorAuth.js';
+import * as notificationService from './notification.service.js';
 /**
  * Creates a new distributor or staff seller account.
  * Accessible only by staff (admin/company_staff).
@@ -68,6 +69,39 @@ export async function createSeller(input, adminUserId, adminUserRole) {
         await supabase.auth.admin.deleteUser(userId);
         throw new ApiError(500, `Failed to create seller profile: ${profileError.message}`);
     }
+    // Look up starting 'Member' rank
+    const { data: memberRank, error: rankError } = await supabase
+        .from('ranks')
+        .select('id')
+        .eq('name', 'Member')
+        .single();
+    if (rankError || !memberRank) {
+        // Clean up profile and auth user
+        await supabase.from('profiles').delete().eq('id', userId);
+        await supabase.auth.admin.deleteUser(userId);
+        throw new ApiError(500, `Failed to look up starting 'Member' rank: ${rankError?.message || 'Not found'}`);
+    }
+    // Update the newly created profile with the Member rank ID
+    const { error: rankUpdateError } = await supabase
+        .from('profiles')
+        .update({ rank_id: memberRank.id })
+        .eq('id', userId);
+    if (rankUpdateError) {
+        // Clean up
+        await supabase.from('profiles').delete().eq('id', userId);
+        await supabase.auth.admin.deleteUser(userId);
+        throw new ApiError(500, `Failed to assign starting rank: ${rankUpdateError.message}`);
+    }
+    // 7.5. Notify the upline if this distributor was referred
+    if (referredBy) {
+        try {
+            await notificationService.notifyNewReferral(referredBy, input.fullName, input.distributorId);
+        }
+        catch (notifError) {
+            console.error(`❌ Failed to send new referral notification: ${notifError}`);
+            // Don't throw - notification failure shouldn't break the seller creation
+        }
+    }
     // 8. Retrieve and shape the completed profile
     return getSellerById(userId);
 }
@@ -127,6 +161,7 @@ export async function listSellers(search, page = 1, limit = 20) {
         mustChangePassword: p.must_change_password,
         directDownlineCount: downlineCounts[p.id] || 0,
         createdAt: p.created_at,
+        rankId: p.rank_id,
     }));
 }
 /**
@@ -167,6 +202,7 @@ export async function getSellerById(id) {
         mustChangePassword: profile.must_change_password,
         directDownlineCount: count || 0,
         createdAt: profile.created_at,
+        rankId: profile.rank_id,
     };
 }
 /**

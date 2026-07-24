@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import * as notificationService from './notification.service.js';
 
 export interface TeamBonusLevel {
   level: number;
@@ -313,6 +314,18 @@ export async function runTeamBonusBatch(
 
       if (insertError) {
         throw new ApiError(500, `Failed to create team bonus commission: ${insertError.message}`);
+      }
+
+      // Send notification for this level's bonus
+      try {
+        await notificationService.notifyTeamBonusEarned(
+          distId,
+          levelBreakdown.bonusAmount,
+          period,
+        );
+      } catch (notifError) {
+        console.error(`❌ Failed to send team bonus notification for ${distId}: ${notifError}`);
+        // Don't throw - notification failure shouldn't break the bonus creation
       }
     }
 

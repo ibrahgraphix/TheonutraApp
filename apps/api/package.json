@@ -20,7 +20,8 @@
     "test:customer-sales": "tsx scripts/testCustomerSales.ts",
     "test:team-bonus": "tsx scripts/testTeamBonus.ts",
     "test:wallet": "tsx scripts/testWallet.ts",
-    "test:manual-bonus": "tsx scripts/testManualBonus.ts"
+    "test:manual-bonus": "tsx scripts/testManualBonus.ts",
+    "test:events-loyalty-audit": "tsx scripts/testEventsLoyaltyAudit.ts"
   },
   "keywords": [],
   "author": "",

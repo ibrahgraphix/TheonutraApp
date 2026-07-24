@@ -26,7 +26,17 @@ export async function login(distributorId, password) {
     // Step 3 — fetch profile (service role key bypasses RLS, so this always works)
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('distributor_id, full_name, role, must_change_password, is_active')
+        .select(`
+      distributor_id,
+      full_name,
+      role,
+      must_change_password,
+      is_active,
+      country_id,
+      countries (
+        name
+      )
+    `)
         .eq('id', userId)
         .single();
     if (profileError || !profile) {
@@ -37,13 +47,17 @@ export async function login(distributorId, password) {
     if (!profile.is_active) {
         throw new ApiError(403, 'Account is deactivated');
     }
+    const countryName = profile.countries?.name ?? '';
     // Step 5 — return token + safe fields only
     return {
         token: authData.session.access_token,
         user: {
+            id: userId,
             distributorId: profile.distributor_id,
             fullName: profile.full_name,
             role: profile.role,
+            country: countryName,
+            countryId: profile.country_id,
             mustChangePassword: profile.must_change_password,
         },
     };

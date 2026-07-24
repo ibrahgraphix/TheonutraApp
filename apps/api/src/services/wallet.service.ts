@@ -1,5 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import * as notificationService from './notification.service.js';
+import * as auditLogService from './auditLog.service.js';
 
 export interface Wallet {
   distributor_id: string;
@@ -128,6 +130,7 @@ export async function getMyTransactions(
 /**
  * Submits a withdrawal request. Invokes database RPC function to atomically
  * check available balance and reserve the amount.
+ * Requires KYC to be approved before allowing withdrawal.
  */
 export async function requestWithdrawal(
   distributorId: string,
@@ -135,6 +138,21 @@ export async function requestWithdrawal(
   method: 'bank' | 'mobile_money',
   payoutDetails: string,
 ): Promise<string> {
+  // Check KYC status before allowing withdrawal
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('kyc_status')
+    .eq('id', distributorId)
+    .single();
+
+  if (profileError || !profile) {
+    throw new ApiError(404, 'Profile not found');
+  }
+
+  if (profile.kyc_status !== 'approved') {
+    throw new ApiError(403, 'KYC must be approved before requesting a withdrawal');
+  }
+
   const { data, error } = await supabase.rpc('create_withdrawal_request', {
     p_distributor_id: distributorId,
     p_amount: amount,
@@ -212,6 +230,17 @@ export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequ
  * Approves a pending withdrawal request (staff only).
  */
 export async function approveWithdrawal(requestId: string, reviewedBy: string): Promise<void> {
+  // Fetch request details before approval for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
   const { error } = await supabase.rpc('approve_withdrawal', {
     p_request_id: requestId,
     p_reviewed_by: reviewedBy,
@@ -226,6 +255,31 @@ export async function approveWithdrawal(requestId: string, reviewedBy: string): 
     }
     throw new ApiError(500, `Failed to approve withdrawal: ${error.message}`);
   }
+
+  // Log audit action
+  await auditLogService.logAction(
+    reviewedBy,
+    'withdrawal_approved',
+    'withdrawal_request',
+    requestId,
+    {
+      distributor_id: request.distributor_id,
+      amount: Number(request.amount),
+    },
+  );
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'approved',
+      Number(request.amount),
+      requestId,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal approval notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the approval
+  }
 }
 
 /**
@@ -236,6 +290,17 @@ export async function rejectWithdrawal(
   reviewedBy: string,
   notes: string,
 ): Promise<void> {
+  // Fetch request details before rejection for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
   const { error } = await supabase.rpc('reject_withdrawal', {
     p_request_id: requestId,
     p_reviewed_by: reviewedBy,
@@ -251,16 +316,43 @@ export async function rejectWithdrawal(
     }
     throw new ApiError(500, `Failed to reject withdrawal: ${error.message}`);
   }
+
+  // Log audit action
+  await auditLogService.logAction(
+    reviewedBy,
+    'withdrawal_rejected',
+    'withdrawal_request',
+    requestId,
+    {
+      distributor_id: request.distributor_id,
+      amount: Number(request.amount),
+      notes,
+    },
+  );
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'rejected',
+      Number(request.amount),
+      requestId,
+      notes,
+    );
+  } catch (notifError) {
+    console.error(`❌ Faled to send withdrawal rejection notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the rejection
+  }
 }
 
 /**
  * Marks an approved withdrawal request as paid (staff only).
  */
 export async function markWithdrawalPaid(requestId: string, reviewedBy: string): Promise<void> {
-  // We need to fetch the status first to validate it's 'approved'
+  // Fetch request details before marking as paid for notification
   const { data: request, error: fetchError } = await supabase
     .from('withdrawal_requests')
-    .select('status')
+    .select('status, distributor_id, amount')
     .eq('id', requestId)
     .single();
 
@@ -283,5 +375,18 @@ export async function markWithdrawalPaid(requestId: string, reviewedBy: string):
 
   if (updateError) {
     throw new ApiError(500, `Failed to mark withdrawal request as paid: ${updateError.message}`);
+  }
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'paid',
+      Number(request.amount),
+      requestId,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal paid notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the update
   }
 }

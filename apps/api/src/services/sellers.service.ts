@@ -3,6 +3,7 @@ import { ApiError } from '../middleware/error.middleware.js';
 import { isDistributorIdTaken } from '../utils/idValidation.js';
 import { distributorIdToEmail } from '../utils/distributorAuth.js';
 import { CreateSellerInput } from '../schemas/sellers.schema.js';
+import * as notificationService from './notification.service.js';
 
 export interface SellerProfile {
   id: string;
@@ -126,6 +127,20 @@ export async function createSeller(
     await supabase.from('profiles').delete().eq('id', userId);
     await supabase.auth.admin.deleteUser(userId);
     throw new ApiError(500, `Failed to assign starting rank: ${rankUpdateError.message}`);
+  }
+
+  // 7.5. Notify the upline if this distributor was referred
+  if (referredBy) {
+    try {
+      await notificationService.notifyNewReferral(
+        referredBy,
+        input.fullName,
+        input.distributorId,
+      );
+    } catch (notifError) {
+      console.error(`❌ Failed to send new referral notification: ${notifError}`);
+      // Don't throw - notification failure shouldn't break the seller creation
+    }
   }
 
   // 8. Retrieve and shape the completed profile

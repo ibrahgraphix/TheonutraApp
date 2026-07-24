@@ -1,0 +1,55 @@
+import * as customerSalesService from '../services/customerSales.service.js';
+import { ApiError } from '../middleware/error.middleware.js';
+/**
+ * POST /api/customer-sales
+ * Logs a customer sale for the authenticated distributor.
+ */
+export async function logCustomerSaleHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const input = req.body;
+        const sale = await customerSalesService.logCustomerSale(req.user.id, input);
+        res.status(201).json(sale);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * GET /api/customer-sales?page=1&limit=20
+ * Returns paginated list of customer sales for the authenticated distributor.
+ */
+export async function listMyCustomerSalesHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const page = parseInt(req.query['page'], 10) || 1;
+        const limit = parseInt(req.query['limit'], 10) || 20;
+        const result = await customerSalesService.listMyCustomerSales(req.user.id, page, limit);
+        res.status(200).json(result);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * GET /api/customer-sales/summary?month=2024-01
+ * Returns summary of retail profit and PV from customer sales for the authenticated distributor.
+ */
+export async function getMyCustomerSalesSummaryHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const month = req.query['month'];
+        const summary = await customerSalesService.getMyCustomerSalesSummary(req.user.id, month);
+        res.status(200).json(summary);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+//# sourceMappingURL=customerSales.controller.js.map

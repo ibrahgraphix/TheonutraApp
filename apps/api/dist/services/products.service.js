@@ -15,10 +15,12 @@ export async function getProductsByCountry(countryId) {
       description,
       image_url,
       is_active,
+      pv,
       created_at,
       updated_at,
       product_prices!inner (
         price,
+        distributor_price,
         is_available,
         country_id,
         countries (
@@ -49,10 +51,12 @@ export async function getProductById(id, countryId) {
       description,
       image_url,
       is_active,
+      pv,
       created_at,
       updated_at,
       product_prices!inner (
         price,
+        distributor_price,
         is_available,
         country_id,
         countries (
@@ -87,8 +91,9 @@ export async function createProduct(input, staffUserId) {
         image_url: input.imageUrl ?? null,
         is_active: true,
         created_by: staffUserId,
+        pv: input.pv ?? 0,
     })
-        .select('id, name, description, image_url, is_active, created_at, updated_at')
+        .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
         .single();
     if (productError || !product) {
         throw new ApiError(500, `Failed to create product: ${productError?.message}`);
@@ -98,6 +103,7 @@ export async function createProduct(input, staffUserId) {
         product_id: product.id,
         country_id: p.countryId,
         price: p.price,
+        distributor_price: p.distributorPrice,
         is_available: p.isAvailable,
     }));
     const { error: priceError } = await supabase
@@ -119,7 +125,7 @@ export async function updateProduct(id, input) {
     // 1. Fetch existing product to get old imageUrl before updating
     const { data: existingProduct, error: fetchError } = await supabase
         .from('products')
-        .select('id, name, description, image_url, is_active, created_at, updated_at')
+        .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
         .eq('id', id)
         .maybeSingle();
     if (fetchError) {
@@ -137,13 +143,15 @@ export async function updateProduct(id, input) {
         productPatch['description'] = input.description;
     if (input.imageUrl !== undefined)
         productPatch['image_url'] = input.imageUrl;
+    if (input.pv !== undefined)
+        productPatch['pv'] = input.pv;
     let product = null;
     if (Object.keys(productPatch).length > 0) {
         const { data, error } = await supabase
             .from('products')
             .update(productPatch)
             .eq('id', id)
-            .select('id, name, description, image_url, is_active, created_at, updated_at')
+            .select('id, name, description, image_url, is_active, pv, created_at, updated_at')
             .single();
         if (error) {
             if (error.code === 'PGRST116') {
@@ -162,6 +170,7 @@ export async function updateProduct(id, input) {
             product_id: id,
             country_id: p.countryId,
             price: p.price,
+            distributor_price: p.distributorPrice,
             is_available: p.isAvailable,
         }));
         const { error: priceError } = await supabase
@@ -216,6 +225,7 @@ function mapProduct(row) {
         description: row['description'] ?? null,
         imageUrl: row['image_url'] ?? null,
         isActive: row['is_active'],
+        pv: Number(row['pv'] ?? 0),
         createdAt: row['created_at'],
         updatedAt: row['updated_at'],
     };
@@ -227,6 +237,7 @@ function mapProductWithPrice(row) {
     const priceRow = Array.isArray(priceRows) ? priceRows[0] : null;
     if (priceRow) {
         base.price = priceRow['price'];
+        base.distributorPrice = priceRow['distributor_price'];
         const countryData = priceRow['countries'];
         base.currencyCode = countryData?.['currency_code'];
     }

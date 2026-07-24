@@ -22,6 +22,13 @@ import customerSalesRouter from './routes/customerSales.routes.js';
 import teamBonusRouter from './routes/teamBonus.routes.js';
 import walletRouter from './routes/wallet.routes.js';
 import manualBonusRouter from './routes/manualBonus.routes.js';
+import kycRouter from './routes/kyc.routes.js';
+import referralRouter from './routes/referral.routes.js';
+import notificationRouter from './routes/notification.routes.js';
+import trainingRouter from './routes/training.routes.js';
+import eventsRouter from './routes/events.routes.js';
+import loyaltyRouter from './routes/loyalty.routes.js';
+import auditLogRouter from './routes/auditLog.routes.js';
 
 const app = express();
 
@@ -59,6 +66,13 @@ app.use('/api/customer-sales', customerSalesRouter);         // Step 13 — auth
 app.use('/api/team-bonus',  teamBonusRouter);                // Step 14 — auth inside router
 app.use('/api/wallet',         walletRouter);                   // Step 15 — auth inside router
 app.use('/api/manual-bonuses', manualBonusRouter);               // Step 16 — auth inside router
+app.use('/api/kyc',            kycRouter);                      // Step 17 — auth inside router
+app.use('/api/referral',       referralRouter);                 // Step 18 — auth inside router
+app.use('/api/notifications',  notificationRouter);              // Step 19 — auth inside router
+app.use('/api/training',       trainingRouter);                 // Step 20 — auth inside router
+app.use('/api/events',         eventsRouter);                   // Step 21 — auth inside router
+app.use('/api/loyalty',        loyaltyRouter);                  // Step 22 — auth inside router
+app.use('/api/audit-log',      auditLogRouter);                  // Step 22 — auth inside router
 
 // ── Centralised error handler (must be last) ──────────────────────────────────
 

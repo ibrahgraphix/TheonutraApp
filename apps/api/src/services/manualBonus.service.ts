@@ -1,5 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import * as notificationService from './notification.service.js';
+import * as auditLogService from './auditLog.service.js';
 
 export interface ManualBonus {
   id: string;
@@ -53,6 +55,32 @@ export async function awardBonus(
 
   if (error || !data) {
     throw new ApiError(500, `Failed to award manual bonus: ${error?.message}`);
+  }
+
+  // Log audit action
+  await auditLogService.logAction(
+    staffId,
+    'manual_bonus_awarded',
+    'manual_bonus',
+    data.id,
+    {
+      distributor_id: distributorId,
+      amount,
+      category,
+      note: note || null,
+    },
+  );
+
+  // Send notification to the distributor
+  try {
+    await notificationService.notifyManualBonus(
+      distributorId,
+      amount,
+      note || category,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send manual bonus notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the bonus award
   }
 
   return {

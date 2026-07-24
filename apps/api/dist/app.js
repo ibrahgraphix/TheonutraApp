@@ -17,6 +17,17 @@ import articlesRouter from './routes/articles.routes.js';
 import newsRouter from './routes/news.routes.js';
 import uploadsRouter from './routes/uploads.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
+import ranksRouter from './routes/ranks.routes.js';
+import customerSalesRouter from './routes/customerSales.routes.js';
+import teamBonusRouter from './routes/teamBonus.routes.js';
+import walletRouter from './routes/wallet.routes.js';
+import manualBonusRouter from './routes/manualBonus.routes.js';
+import kycRouter from './routes/kyc.routes.js';
+import referralRouter from './routes/referral.routes.js';
+import notificationRouter from './routes/notification.routes.js';
+import trainingRouter from './routes/training.routes.js';
+import loyaltyRouter from './routes/loyalty.routes.js';
+import auditLogRouter from './routes/auditLog.routes.js';
 const app = express();
 // ── Core middleware ────────────────────────────────────────────────────────────
 app.use(cors());
@@ -40,6 +51,17 @@ app.use('/api/articles', articlesRouter); // Step 9 — auth inside router
 app.use('/api/news', newsRouter); // Step 9 — auth inside router
 app.use('/api/uploads', uploadsRouter); // Step 9 — auth inside router
 app.use('/api/dashboard', dashboardRouter); // Step 10 — auth inside router
+app.use('/api/ranks', ranksRouter); // Step 12 — auth inside router
+app.use('/api/customer-sales', customerSalesRouter); // Step 13 — auth inside router
+app.use('/api/team-bonus', teamBonusRouter); // Step 14 — auth inside router
+app.use('/api/wallet', walletRouter); // Step 15 — auth inside router
+app.use('/api/manual-bonuses', manualBonusRouter); // Step 16 — auth inside router
+app.use('/api/kyc', kycRouter); // Step 17 — auth inside router
+app.use('/api/referral', referralRouter); // Step 18 — auth inside router
+app.use('/api/notifications', notificationRouter); // Step 19 — auth inside router
+app.use('/api/training', trainingRouter); // Step 20 — auth inside routerapp.use('/api/events',         eventsRouter);                   // Step 21 — events
+app.use('/api/loyalty', loyaltyRouter); // Step 21 — loyalty points
+app.use('/api/audit-log', auditLogRouter); // Step 21 — audit logs
 // ── Centralised error handler (must be last) ──────────────────────────────────
 app.use(errorMiddleware);
 export default app;

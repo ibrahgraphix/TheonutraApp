@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { env } from '../config/env.js';
+import * as notificationService from './notification.service.js';
 
 /**
  * Creates a sale row for the completed order.
@@ -97,6 +98,18 @@ export async function createSaleForOrder(orderId: string): Promise<void> {
   }
 
   console.log(`✅ Commission created: ${commissionAmount} for beneficiary ${buyerProfile.referred_by} (level 1)`);
+
+  // Send notification to the beneficiary
+  try {
+    await notificationService.notifyCommissionEarned(
+      buyerProfile.referred_by,
+      commissionAmount,
+      sale.id,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send commission notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the commission
+  }
 }
 
 /**
