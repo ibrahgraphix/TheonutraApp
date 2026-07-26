@@ -22,6 +22,8 @@ import type { ManageStackParamList } from '../../navigation/manageTypes';
 import {
   createProduct,
   getCountries,
+  getProductForAdmin,
+  updateProduct,
   uploadProductImage,
 } from '../../services/api';
 import type { Country } from '../../types';
@@ -40,61 +42,93 @@ type PriceRow = {
   countryName: string;
   currency: string;
   price: number;
+  distributorPrice: number;
   available: boolean;
 };
 
 export function AddEditProductScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRoute>();
+  const productId = route.params.productId;
+  const isEdit = Boolean(productId);
+
   const [pricing, setPricing] = useState<PriceRow[]>([]);
-  const [countriesLoading, setCountriesLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const { control, handleSubmit } = useForm<z.infer<typeof schema>>({
+  const { control, handleSubmit, reset } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { name: '', description: '' },
   });
 
   useEffect(() => {
     const load = async () => {
-      setCountriesLoading(true);
+      setLoading(true);
       setLoadError(null);
       try {
         const countries: Country[] = await getCountries();
-        setPricing(
-          countries.map((c) => ({
-            countryId: c.id,
-            countryName: c.name,
-            currency: c.currencyCode,
-            price: 0,
-            available: false,
-          })),
-        );
+
+        if (isEdit && productId) {
+          const product = await getProductForAdmin(productId);
+          reset({ name: product.name, description: product.description ?? '' });
+          setImageUrl(product.imageUrl ?? undefined);
+
+          const priceByCountry = new Map(product.pricing.map((p) => [p.countryId, p]));
+          setPricing(
+            countries.map((c) => {
+              const existing = priceByCountry.get(c.id);
+              return {
+                countryId: c.id,
+                countryName: c.name,
+                currency: c.currencyCode,
+                price: existing?.price ?? 0,
+                distributorPrice: existing?.distributorPrice ?? 0,
+                available: existing?.isAvailable ?? false,
+              };
+            }),
+          );
+        } else {
+          setPricing(
+            countries.map((c) => ({
+              countryId: c.id,
+              countryName: c.name,
+              currency: c.currencyCode,
+              price: 0,
+              distributorPrice: 0,
+              available: false,
+            })),
+          );
+        }
+
         if (countries.length === 0) {
           setLoadError('No countries in the database. Add a country under Manage → Countries first.');
         }
       } catch (err) {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load countries');
+        setLoadError(err instanceof Error ? err.message : 'Failed to load product data');
       } finally {
-        setCountriesLoading(false);
+        setLoading(false);
       }
     };
 
     void load();
-  }, [route.params.productId]);
+  }, [isEdit, productId, reset]);
 
-  const updatePrice = (countryId: string, field: 'price' | 'available', value: string | boolean) => {
+  const updatePrice = (
+    countryId: string,
+    field: 'price' | 'distributorPrice' | 'available',
+    value: string | boolean,
+  ) => {
     setPricing((prev) =>
       prev.map((p) =>
         p.countryId === countryId
           ? {
               ...p,
               [field]:
-                field === 'price' ? Number(value) || 0 : Boolean(value),
+                field === 'available' ? Boolean(value) : Number(value) || 0,
             }
           : p,
       ),
@@ -125,7 +159,6 @@ export function AddEditProductScreen() {
       setImageUrl(uploadedUrl);
     } catch (err) {
       setLocalImageUri(null);
-      setImageUrl(undefined);
       Alert.alert(
         'Upload failed',
         err instanceof Error ? err.message : 'Could not upload image. Check Cloudinary config.',
@@ -141,6 +174,7 @@ export function AddEditProductScreen() {
       .map((p) => ({
         countryId: p.countryId,
         price: p.price,
+        distributorPrice: p.distributorPrice,
         isAvailable: true,
       }));
 
@@ -151,13 +185,23 @@ export function AddEditProductScreen() {
 
     setSaving(true);
     try {
-      await createProduct({
-        name: data.name.trim(),
-        description: data.description.trim(),
-        imageUrl,
-        prices,
-      });
-      Alert.alert('Saved', 'Product saved and is available in the shop for priced countries.');
+      if (isEdit && productId) {
+        await updateProduct(productId, {
+          name: data.name.trim(),
+          description: data.description.trim(),
+          imageUrl,
+          prices,
+        });
+        Alert.alert('Saved', 'Product updated.');
+      } else {
+        await createProduct({
+          name: data.name.trim(),
+          description: data.description.trim(),
+          imageUrl,
+          prices,
+        });
+        Alert.alert('Saved', 'Product saved and is available in the shop for priced countries.');
+      }
       navigation.goBack();
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not save product.');
@@ -168,11 +212,20 @@ export function AddEditProductScreen() {
 
   const previewUri = localImageUri ?? imageUrl;
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ShopHeader onBack={() => navigation.goBack()} title={isEdit ? 'Edit Product' : 'Add Product'} />
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ShopHeader
         onBack={() => navigation.goBack()}
-        title={route.params.productId ? 'Edit Product' : 'Add Product'}
+        title={isEdit ? 'Edit Product' : 'Add Product'}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -218,9 +271,7 @@ export function AddEditProductScreen() {
         />
 
         <Text style={styles.sectionTitle}>Pricing by Country</Text>
-        {countriesLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : loadError ? (
+        {loadError ? (
           <Text style={styles.error}>{loadError}</Text>
         ) : (
           pricing.map((p) => (
@@ -230,9 +281,15 @@ export function AddEditProductScreen() {
               </Text>
               <Input
                 keyboardType="numeric"
-                label="Price"
+                label="Customer Price"
                 onChangeText={(v) => updatePrice(p.countryId, 'price', v)}
                 value={p.price > 0 ? String(p.price) : ''}
+              />
+              <Input
+                keyboardType="numeric"
+                label="Distributor Price"
+                onChangeText={(v) => updatePrice(p.countryId, 'distributorPrice', v)}
+                value={p.distributorPrice > 0 ? String(p.distributorPrice) : ''}
               />
               <Button
                 onPress={() => updatePrice(p.countryId, 'available', !p.available)}
@@ -244,11 +301,11 @@ export function AddEditProductScreen() {
         )}
 
         <Button
-          disabled={countriesLoading || Boolean(loadError) || uploading}
+          disabled={Boolean(loadError) || uploading}
           fullWidth
           loading={saving}
           onPress={onSubmit}
-          title="Save Product"
+          title={isEdit ? 'Save Changes' : 'Save Product'}
         />
       </ScrollView>
     </View>
@@ -257,6 +314,7 @@ export function AddEditProductScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  loader: { marginTop: spacing.xxxl },
   content: { gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xxxl },
   imageCard: {
     backgroundColor: colors.surface,

@@ -4,6 +4,8 @@ import type { RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
+    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -11,12 +13,14 @@ import {
     View,
 } from 'react-native';
 
-import { Avatar, Badge, ShopHeader, TeamMemberRow } from '../../components';
+import { Avatar, Badge, ConfirmModal, ShopHeader, TeamMemberRow } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
 import {
+    deactivateSeller,
     getCurrencyForCountry,
     getDistributorById,
     getTeamForDistributor,
+    hardDeleteSeller,
 } from '../../services/api';
 import type { Distributor, TeamMember } from '../../types';
 import { formatDate } from '../../utils/format';
@@ -24,12 +28,8 @@ import { colors, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'DistributorDetail'>;
 type ScreenRoute = RouteProp<ManageStackParamList, 'DistributorDetail'>;
+type ConfirmAction = 'deactivate' | 'delete' | null;
 
-/**
- * Recursive expand/collapse tree — same pattern as TeamListScreen's local
- * TeamTree, reused here so staff get one continuous screen (profile + full
- * chain) instead of drilling into a new screen per level.
- */
 function DownlineTree({
     members,
     currency,
@@ -84,6 +84,8 @@ export function DistributorDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+    const [processing, setProcessing] = useState(false);
 
     const currency = profile ? getCurrencyForCountry(profile.country) : 'USD';
 
@@ -115,6 +117,29 @@ export function DistributorDetailScreen() {
         });
     };
 
+    const handleConfirm = async () => {
+        if (!confirmAction) return;
+        setProcessing(true);
+        try {
+            if (confirmAction === 'deactivate') {
+                await deactivateSeller(distributorId);
+                setConfirmAction(null);
+                await load();
+            } else {
+                await hardDeleteSeller(distributorId);
+                setConfirmAction(null);
+                navigation.goBack();
+            }
+        } catch (err) {
+            Alert.alert(
+                confirmAction === 'deactivate' ? 'Cannot deactivate' : 'Cannot delete',
+                err instanceof Error ? err.message : 'Action failed.',
+            );
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     const directCount = downline.length;
     const totalCount = countAll(downline);
 
@@ -137,9 +162,42 @@ export function DistributorDetailScreen() {
                         <Avatar name={profile.fullName} size={64} />
                         <Text style={styles.name}>{profile.fullName}</Text>
                         <Badge label={profile.distributorId} variant="secondary" />
+                        {profile.isActive === false ? <Badge label="Inactive" variant="error" /> : null}
                         <Text style={styles.meta}>
                             {profile.country} · Joined {formatDate(profile.joinDate)}
                         </Text>
+                    </View>
+
+                    <View style={styles.actionsRow}>
+                        <Pressable
+                            onPress={() => navigation.navigate('EditSeller', { distributorId })}
+                            style={styles.actionBtn}
+                        >
+                            <Text style={styles.actionText}>Edit</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() =>
+                                navigation.navigate('ResetPassword', {
+                                    distributorId,
+                                    distributorName: profile.fullName,
+                                })
+                            }
+                            style={styles.actionBtn}
+                        >
+                            <Text style={styles.actionText}>Reset Password</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => setConfirmAction('deactivate')}
+                            style={styles.actionBtn}
+                        >
+                            <Text style={styles.deactivateText}>Deactivate</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => setConfirmAction('delete')}
+                            style={styles.actionBtn}
+                        >
+                            <Text style={styles.deleteText}>Delete</Text>
+                        </Pressable>
                     </View>
 
                     <View style={styles.sectionHeader}>
@@ -162,6 +220,21 @@ export function DistributorDetailScreen() {
                     )}
                 </ScrollView>
             )}
+
+            <ConfirmModal
+                confirmLabel={confirmAction === 'delete' ? 'Delete Forever' : 'Deactivate'}
+                destructive
+                loading={processing}
+                message={
+                    confirmAction === 'delete'
+                        ? `Permanently delete ${profile?.fullName ?? 'this distributor'}? Only works if they have no downline, orders, or commissions.`
+                        : `Deactivate ${profile?.fullName ?? 'this distributor'}? They'll be blocked from logging in, but history stays intact.`
+                }
+                onCancel={() => setConfirmAction(null)}
+                onConfirm={handleConfirm}
+                title={confirmAction === 'delete' ? 'Delete Distributor?' : 'Deactivate Distributor?'}
+                visible={confirmAction !== null}
+            />
         </View>
     );
 }
@@ -204,6 +277,34 @@ const styles = StyleSheet.create({
     meta: {
         ...typography.bodySmall,
         color: colors.textSecondary,
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        justifyContent: 'center',
+    },
+    actionBtn: {
+        borderColor: colors.border,
+        borderRadius: 10,
+        borderWidth: 1,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+    },
+    actionText: {
+        ...typography.bodySmall,
+        color: colors.primary,
+        fontWeight: '600',
+    },
+    deactivateText: {
+        ...typography.bodySmall,
+        color: colors.warning ?? '#f59e0b',
+        fontWeight: '600',
+    },
+    deleteText: {
+        ...typography.bodySmall,
+        color: colors.error,
+        fontWeight: '600',
     },
     sectionHeader: {
         gap: spacing.xs,

@@ -59,7 +59,7 @@ export async function createCountry(input: {
 }
 
 /**
- * Updates fields on an existing country (e.g. toggle is_active, rename, etc.).
+ * Updates fields on an existing country (e.g. rename, change currency, etc.).
  * Staff-only — caller must have already passed requireStaff middleware.
  */
 export async function updateCountry(
@@ -71,12 +71,11 @@ export async function updateCountry(
     isActive: boolean;
   }>,
 ): Promise<Country> {
-  // Build the update payload, only including provided fields
   const patch: Record<string, unknown> = {};
-  if (input.name !== undefined)         patch['name']          = input.name;
-  if (input.isoCode !== undefined)      patch['iso_code']      = input.isoCode;
+  if (input.name !== undefined) patch['name'] = input.name;
+  if (input.isoCode !== undefined) patch['iso_code'] = input.isoCode;
   if (input.currencyCode !== undefined) patch['currency_code'] = input.currencyCode;
-  if (input.isActive !== undefined)     patch['is_active']     = input.isActive;
+  if (input.isActive !== undefined) patch['is_active'] = input.isActive;
 
   if (Object.keys(patch).length === 0) {
     throw new ApiError(422, 'No updatable fields provided');
@@ -102,15 +101,76 @@ export async function updateCountry(
   return mapCountry(data);
 }
 
+/**
+ * Soft-deactivates a country (is_active = false). Blocked if any distributor
+ * profile or available product price still references it — reference data
+ * is never hard-deleted while dependents exist.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function deactivateCountry(id: string): Promise<void> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('countries')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch country: ${fetchError.message}`);
+  }
+  if (!existing) {
+    throw new ApiError(404, 'Country not found');
+  }
+
+  const { count: profileCount, error: profileError } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('country_id', id);
+
+  if (profileError) {
+    throw new ApiError(500, `Failed to check referencing profiles: ${profileError.message}`);
+  }
+  if ((profileCount ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      `Cannot deactivate country: ${profileCount} distributor(s) are still assigned to it`,
+    );
+  }
+
+  const { count: priceCount, error: priceError } = await supabase
+    .from('product_prices')
+    .select('*', { count: 'exact', head: true })
+    .eq('country_id', id)
+    .eq('is_available', true);
+
+  if (priceError) {
+    throw new ApiError(500, `Failed to check referencing product prices: ${priceError.message}`);
+  }
+  if ((priceCount ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      `Cannot deactivate country: ${priceCount} product price(s) still reference it`,
+    );
+  }
+
+  const { error } = await supabase
+    .from('countries')
+    .update({ is_active: false })
+    .eq('id', id);
+
+  if (error) {
+    throw new ApiError(500, `Failed to deactivate country: ${error.message}`);
+  }
+}
+
 // ── Private helpers ──────────────────────────────────────────────────────────
 
 function mapCountry(row: Record<string, unknown>): Country {
   return {
-    id:           row['id'] as string,
-    name:         row['name'] as string,
-    isoCode:      row['iso_code'] as string,
+    id: row['id'] as string,
+    name: row['name'] as string,
+    isoCode: row['iso_code'] as string,
     currencyCode: row['currency_code'] as string,
-    isActive:     row['is_active'] as boolean,
-    createdAt:    row['created_at'] as string,
+    isActive: row['is_active'] as boolean,
+    createdAt: row['created_at'] as string,
   };
 }

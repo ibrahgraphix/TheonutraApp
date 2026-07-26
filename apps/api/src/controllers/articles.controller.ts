@@ -1,3 +1,4 @@
+//articlesController
 import { Request, Response, NextFunction } from 'express';
 import * as articlesService from '../services/articles.service.js';
 import { CreateContentInput, UpdateContentInput } from '../schemas/content.schema.js';

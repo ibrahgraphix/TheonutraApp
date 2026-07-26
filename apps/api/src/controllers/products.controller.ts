@@ -1,3 +1,4 @@
+//productscontroller
 import { Request, Response, NextFunction } from 'express';
 import * as productsService from '../services/products.service.js';
 import { CreateProductInput, UpdateProductInput } from '../schemas/catalog.schema.js';
@@ -91,6 +92,45 @@ export async function updateProductHandler(
 
     const input = req.body as UpdateProductInput;
     const product = await productsService.updateProduct(id, input);
+    res.status(200).json(product);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/products/admin/list
+ * Lists ALL products with ALL country price rows. Staff only.
+ */
+export async function listProductsForAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const products = await productsService.listProductsForAdmin();
+    res.status(200).json(products);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/products/:id/admin
+ * Fetches a single product with ALL country price rows. Staff only.
+ */
+export async function getProductForAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const id = req.params['id'];
+    if (!id) {
+      throw new ApiError(400, 'Product ID is required');
+    }
+
+    const product = await productsService.getProductForAdmin(id);
     res.status(200).json(product);
   } catch (err) {
     next(err);

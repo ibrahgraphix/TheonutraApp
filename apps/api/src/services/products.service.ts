@@ -1,3 +1,4 @@
+//productsservices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { CreateProductInput, UpdateProductInput } from '../schemas/catalog.schema.js';
@@ -276,6 +277,117 @@ export async function deactivateProduct(id: string): Promise<void> {
 
   // 3. Delete Cloudinary asset after successful deactivation
   await deleteCloudinaryAsset(oldImageUrl);
+}
+
+// ── Admin-only reads (bypass country/availability filters) ────────────────────
+
+export interface AdminProductPrice {
+  countryId:        string;
+  countryName:       string;
+  currencyCode:      string;
+  price:             number;
+  distributorPrice:  number;
+  isAvailable:       boolean;
+}
+
+export interface AdminProduct extends Product {
+  pricing: AdminProductPrice[];
+}
+
+/**
+ * Lists ALL products (active and inactive) with ALL their country price rows,
+ * regardless of availability. Staff-only — used by the Manage → Products list
+ * and by the edit form to pre-fill every country's pricing.
+ */
+export async function listProductsForAdmin(): Promise<AdminProduct[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      description,
+      image_url,
+      is_active,
+      pv,
+      created_at,
+      updated_at,
+      product_prices (
+        country_id,
+        price,
+        distributor_price,
+        is_available,
+        countries (
+          name,
+          currency_code
+        )
+      )
+    `)
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw new ApiError(500, `Failed to list products: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapAdminProduct);
+}
+
+/**
+ * Fetches a single product with ALL its country price rows, regardless of
+ * availability or active status. Staff-only — used by the edit form.
+ */
+export async function getProductForAdmin(id: string): Promise<AdminProduct> {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      id,
+      name,
+      description,
+      image_url,
+      is_active,
+      pv,
+      created_at,
+      updated_at,
+      product_prices (
+        country_id,
+        price,
+        distributor_price,
+        is_available,
+        countries (
+          name,
+          currency_code
+        )
+      )
+    `)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    throw new ApiError(500, `Failed to fetch product: ${error.message}`);
+  }
+  if (!data) {
+    throw new ApiError(404, 'Product not found');
+  }
+
+  return mapAdminProduct(data);
+}
+
+function mapAdminProduct(row: Record<string, unknown>): AdminProduct {
+  const base = mapProduct(row);
+  const priceRows = (row['product_prices'] as Array<Record<string, unknown>> | null) ?? [];
+
+  const pricing: AdminProductPrice[] = priceRows.map((p) => {
+    const countryData = p['countries'] as Record<string, unknown> | null;
+    return {
+      countryId: p['country_id'] as string,
+      countryName: (countryData?.['name'] as string) ?? '',
+      currencyCode: (countryData?.['currency_code'] as string) ?? '',
+      price: Number(p['price'] ?? 0),
+      distributorPrice: Number(p['distributor_price'] ?? 0),
+      isAvailable: Boolean(p['is_available']),
+    };
+  });
+
+  return { ...base, pricing };
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────

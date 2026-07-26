@@ -6,12 +6,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 
 import {
   Avatar,
@@ -33,11 +36,15 @@ import {
   getMonthLabelForKey,
   getMonthlyAnalysis,
   getOrders,
+  getMyRankProgress,
+  getMyWallet,
+  getNotificationUnreadCount,
 } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
-import type { MonthlyAnalysis, Order } from '../../types';
+import type { MonthlyAnalysis, Order, RankProgress, WalletBalance } from '../../types';
 import { formatCurrency, formatDate, formatOrderStatus } from '../../utils/format';
 import { colors, spacing, typography } from '../../theme';
+import type { AccountStackParamList } from '../../navigation/accountTypes';
 
 const passwordSchema = z
   .object({
@@ -54,7 +61,22 @@ const phoneSchema = z.object({
   phone: z.string().min(9, 'Enter a valid phone number'),
 });
 
+// Backend has no per-wallet currency field yet — using a single default.
+const DEFAULT_CURRENCY = 'USD';
+
+// Rank ladder display
+const RANK_COLORS: Record<string, string> = {
+  Member: '#6b7280',
+  Bronze: '#cd7f32',
+  Silver: '#9ca3af',
+  Gold: '#f59e0b',
+  Platinum: '#06b6d4',
+  Diamond: '#8b5cf6',
+};
+
 export function AccountScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AccountStackParamList>>();
   const distributor = useAuthStore((s) => s.distributor);
   const logout = useAuthStore((s) => s.logout);
   const updateDistributor = useAuthStore((s) => s.updateDistributor);
@@ -64,6 +86,10 @@ export function AccountScreen() {
   const [analysis, setAnalysis] = useState<MonthlyAnalysis | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [rankProgress, setRankProgress] = useState<RankProgress | null>(null);
+  const [wallet, setWallet] = useState<WalletBalance | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [passwordModal, setPasswordModal] = useState(false);
   const [phoneModal, setPhoneModal] = useState(false);
@@ -86,10 +112,16 @@ export function AccountScreen() {
     Promise.all([
       getAnalysisMonths(distributor.id),
       getOrders(distributor.id),
-    ]).then(([m, o]) => {
+      getMyRankProgress().catch(() => null),
+      getMyWallet().catch(() => null),
+      getNotificationUnreadCount().catch(() => ({ count: 0 })),
+    ]).then(([m, o, rp, wb, uc]) => {
       setMonths(m);
       setSelectedMonth(m[0] ?? '');
       setOrders(o.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+      if (rp) setRankProgress(rp);
+      if (wb) setWallet(wb);
+      setUnreadCount((uc as { count: number })?.count ?? 0);
       setLoading(false);
     });
   }, [distributor]);
@@ -146,11 +178,16 @@ export function AccountScreen() {
 
   if (!distributor) return null;
 
+  const rankColor = rankProgress?.currentRank
+    ? (RANK_COLORS[rankProgress.currentRank.name] ?? colors.primary)
+    : colors.primary;
+
   return (
     <View style={styles.container}>
       <ShopHeader title="Account" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Profile card */}
         <Card style={styles.profileCard}>
           <Avatar name={distributor.fullName} size={56} />
           <Text style={styles.name}>{distributor.fullName}</Text>
@@ -158,6 +195,69 @@ export function AccountScreen() {
           <Text style={styles.phone}>{distributor.phone}</Text>
         </Card>
 
+        {/* Rank & PV card */}
+        {rankProgress ? (
+          <Card style={[styles.rankCard, { borderLeftColor: rankColor }]}>
+            <View style={styles.rankHeader}>
+              <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
+                <Text style={styles.rankBadgeText}>
+                  ⭐ {rankProgress.currentRank?.name ?? 'Member'}
+                </Text>
+              </View>
+              {rankProgress.nextRank ? (
+                <Text style={styles.rankNext}>→ {rankProgress.nextRank.name}</Text>
+              ) : (
+                <Text style={styles.rankNext}>🏆 Top Rank!</Text>
+              )}
+            </View>
+            <View style={styles.pvRow}>
+              <PvStat label="Personal PV" value={rankProgress.personalPV ?? 0} />
+              <PvStat label="Team PV" value={rankProgress.teamPV ?? 0} />
+              {rankProgress.nextRank ? (
+                <PvStat label="PV to Next" value={Math.max(0, rankProgress.personalPVNeeded ?? 0)} />
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
+
+        {/* Quick links row */}
+        <View style={styles.quickLinks}>
+          <QuickLink
+            icon="💰"
+            label={wallet ? formatCurrency(wallet.balance, DEFAULT_CURRENCY) : 'Wallet'}
+            onPress={() => navigation.navigate('Wallet')}
+          />
+          <QuickLink
+            badge={unreadCount}
+            icon="🔔"
+            label="Notifications"
+            onPress={() => navigation.navigate('Notifications')}
+          />
+          <QuickLink
+            icon="🎓"
+            label="Training"
+            onPress={() => navigation.navigate('TrainingAcademy')}
+          />
+          <QuickLink
+            icon="📅"
+            label="Events"
+            onPress={() => navigation.navigate('Events')}
+          />
+        </View>
+        <View style={styles.quickLinks}>
+          <QuickLink
+            icon="🔗"
+            label="Referral"
+            onPress={() => navigation.navigate('Referral')}
+          />
+          <QuickLink
+            icon="⭐"
+            label="Loyalty"
+            onPress={() => navigation.navigate('Loyalty')}
+          />
+        </View>
+
+        {/* Monthly Analysis */}
         <Text style={styles.sectionTitle}>Monthly Analysis</Text>
         {months.length > 0 ? (
           <MonthPicker
@@ -188,6 +288,7 @@ export function AccountScreen() {
           </Card>
         )}
 
+        {/* Order History */}
         <Text style={styles.sectionTitle}>Order History</Text>
         {orders.length === 0 ? (
           <Text style={styles.empty}>No orders yet.</Text>
@@ -207,6 +308,7 @@ export function AccountScreen() {
           ))
         )}
 
+        {/* Settings */}
         <Text style={styles.sectionTitle}>Settings</Text>
         <Card style={styles.settingsCard}>
           <SettingsRow label="Change Password" onPress={() => setPasswordModal(true)} />
@@ -295,12 +397,49 @@ export function AccountScreen() {
   );
 }
 
+function PvStat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.pvStat}>
+      <Text style={styles.pvStatValue}>{value.toLocaleString()}</Text>
+      <Text style={styles.pvStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
     </View>
+  );
+}
+
+function QuickLink({
+  icon,
+  label,
+  onPress,
+  badge,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  badge?: number;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.quickLink}>
+      <View style={styles.quickLinkIconWrap}>
+        <Text style={styles.quickLinkIcon}>{icon}</Text>
+        {badge != null && badge > 0 ? (
+          <View style={styles.qlBadge}>
+            <Text style={styles.qlBadgeText}>{badge > 9 ? '9+' : badge}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.quickLinkLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -362,7 +501,7 @@ const styles = StyleSheet.create({
   settingsCard: { gap: spacing.sm },
   logoutBtn: { marginTop: spacing.md },
   chevron: { color: colors.textSecondary, fontSize: 20 },
-  destructive: { color: colors.error },
+  error: { ...typography.bodySmall, color: colors.error },
   modalOverlay: {
     backgroundColor: colors.overlay,
     flex: 1,
@@ -377,5 +516,52 @@ const styles = StyleSheet.create({
   },
   modalTitle: { ...typography.h3, color: colors.text },
   modalBody: { gap: spacing.md },
-  error: { ...typography.bodySmall, color: colors.error },
+  rankCard: {
+    borderLeftWidth: 4,
+    gap: spacing.md,
+  },
+  rankHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  rankBadge: {
+    borderRadius: 20,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  rankBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  rankNext: { ...typography.bodySmall, color: colors.textSecondary },
+  pvRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  pvStat: { alignItems: 'center', flex: 1 },
+  pvStatValue: { ...typography.h3, color: colors.primary, fontWeight: '700' },
+  pvStatLabel: { ...typography.caption, color: colors.textSecondary },
+  quickLinks: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  quickLink: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    flex: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  quickLinkIconWrap: { position: 'relative' },
+  quickLinkIcon: { fontSize: 22 },
+  quickLinkLabel: { ...typography.caption, color: colors.text, textAlign: 'center' },
+  qlBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.error,
+    borderRadius: 7,
+    height: 14,
+    justifyContent: 'center',
+    minWidth: 14,
+    position: 'absolute',
+    right: -6,
+    top: -4,
+  },
+  qlBadgeText: { color: '#fff', fontSize: 8, fontWeight: '700' },
 });

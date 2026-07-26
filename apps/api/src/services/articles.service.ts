@@ -1,3 +1,4 @@
+//articlesServices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { CreateContentInput, UpdateContentInput } from '../schemas/content.schema.js';

@@ -4,6 +4,7 @@ import { isDistributorIdTaken } from '../utils/idValidation.js';
 import { distributorIdToEmail } from '../utils/distributorAuth.js';
 import { CreateSellerInput } from '../schemas/sellers.schema.js';
 import * as notificationService from './notification.service.js';
+import { deleteCloudinaryAsset } from './uploads.service.js';
 
 export interface SellerProfile {
   id: string;
@@ -19,6 +20,12 @@ export interface SellerProfile {
   directDownlineCount: number;
   createdAt: string;
   rankId?: string | null;
+}
+
+export interface UpdateSellerInput {
+  fullName?: string;
+  phoneNumber?: string;
+  countryId?: string;
 }
 
 /**
@@ -267,6 +274,51 @@ export async function getSellerById(id: string): Promise<SellerProfile> {
 }
 
 /**
+ * Updates editable fields on an existing seller profile (name, phone, country).
+ * Does not touch role, password, or active status — use the dedicated
+ * endpoints for those.
+ */
+export async function updateSeller(
+  sellerId: string,
+  input: UpdateSellerInput,
+): Promise<SellerProfile> {
+  // Ensure the seller exists (throws 404 otherwise)
+  await getSellerById(sellerId);
+
+  const patch: Record<string, unknown> = {};
+
+  if (input.fullName !== undefined) {
+    patch['full_name'] = input.fullName;
+  }
+  if (input.phoneNumber !== undefined) {
+    patch['phone_number'] = input.phoneNumber;
+  }
+  if (input.countryId !== undefined) {
+    let countryId = input.countryId;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(countryId)) {
+      countryId = await resolveCountryId(countryId);
+    }
+    patch['country_id'] = countryId;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    throw new ApiError(422, 'No updatable fields provided');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(patch)
+    .eq('id', sellerId);
+
+  if (error) {
+    throw new ApiError(500, `Failed to update seller: ${error.message}`);
+  }
+
+  return getSellerById(sellerId);
+}
+
+/**
  * Resets a seller's password and sets must_change_password to true.
  */
 export async function resetSellerPassword(
@@ -350,5 +402,130 @@ export async function deactivateSeller(sellerId: string): Promise<void> {
 
   if (error) {
     throw new ApiError(500, `Failed to deactivate seller: ${error.message}`);
+  }
+}
+
+/**
+ * Checks whether a seller has any history that makes hard-deletion unsafe:
+ * downline recruits, orders, commissions, or customer sales. If any exist,
+ * hard-deleting would break the downline tree and financial ledgers.
+ */
+async function sellerHasHistory(
+  sellerId: string,
+): Promise<{ hasHistory: boolean; reasons: string[] }> {
+  const reasons: string[] = [];
+
+  const { count: downlineCount, error: downlineError } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('referred_by', sellerId);
+  if (downlineError) {
+    throw new ApiError(500, `Failed to check downline: ${downlineError.message}`);
+  }
+  if ((downlineCount ?? 0) > 0) {
+    reasons.push(`${downlineCount} downline recruit(s)`);
+  }
+
+  const { count: orderCount, error: orderError } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('buyer_id', sellerId);
+  if (orderError) {
+    throw new ApiError(500, `Failed to check orders: ${orderError.message}`);
+  }
+  if ((orderCount ?? 0) > 0) {
+    reasons.push(`${orderCount} order(s)`);
+  }
+
+  const { count: commissionCount, error: commissionError } = await supabase
+    .from('commissions')
+    .select('*', { count: 'exact', head: true })
+    .eq('recipient_id', sellerId);
+  if (commissionError) {
+    throw new ApiError(500, `Failed to check commissions: ${commissionError.message}`);
+  }
+  if ((commissionCount ?? 0) > 0) {
+    reasons.push(`${commissionCount} commission(s)`);
+  }
+
+  const { count: saleCount, error: saleError } = await supabase
+    .from('customer_sales')
+    .select('*', { count: 'exact', head: true })
+    .eq('distributor_id', sellerId);
+  if (saleError) {
+    throw new ApiError(500, `Failed to check customer sales: ${saleError.message}`);
+  }
+  if ((saleCount ?? 0) > 0) {
+    reasons.push(`${saleCount} customer sale(s)`);
+  }
+
+  return { hasHistory: reasons.length > 0, reasons };
+}
+
+/**
+ * Hard-deletes a seller. Only allowed when they have zero downline, orders,
+ * commissions, or customer sales — otherwise rejects and directs the caller
+ * to deactivateSeller instead. On success, also deletes their KYC document
+ * images from Cloudinary and removes their Supabase Auth user so both
+ * systems stay in sync.
+ */
+export async function hardDeleteSeller(sellerId: string): Promise<void> {
+  // Ensure seller exists (throws 404 otherwise)
+  await getSellerById(sellerId);
+
+  const { hasHistory, reasons } = await sellerHasHistory(sellerId);
+  if (hasHistory) {
+    throw new ApiError(
+      409,
+      `Cannot permanently delete this distributor — they have ${reasons.join(
+        ', ',
+      )}. Deactivate the account instead.`,
+    );
+  }
+
+  // Fetch any KYC submission(s) to clean up Cloudinary docs before deleting rows
+  const { data: kycRows, error: kycFetchError } = await supabase
+    .from('kyc_submissions')
+    .select('document_front_url, document_back_url, selfie_url')
+    .eq('distributor_id', sellerId);
+
+  if (kycFetchError) {
+    throw new ApiError(500, `Failed to fetch KYC documents: ${kycFetchError.message}`);
+  }
+
+  for (const row of kycRows ?? []) {
+    await deleteCloudinaryAsset(row.document_front_url as string | null);
+    await deleteCloudinaryAsset(row.document_back_url as string | null);
+    await deleteCloudinaryAsset(row.selfie_url as string | null);
+  }
+
+  // Delete KYC submission rows (no FK dependents beyond this)
+  const { error: kycDeleteError } = await supabase
+    .from('kyc_submissions')
+    .delete()
+    .eq('distributor_id', sellerId);
+
+  if (kycDeleteError) {
+    throw new ApiError(500, `Failed to delete KYC submissions: ${kycDeleteError.message}`);
+  }
+
+  // Delete the profile row
+  const { error: profileDeleteError } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', sellerId);
+
+  if (profileDeleteError) {
+    throw new ApiError(500, `Failed to delete profile: ${profileDeleteError.message}`);
+  }
+
+  // Delete the Supabase Auth user to keep auth.users and profiles in sync.
+  // Best-effort: log but don't fail the whole operation if this errors,
+  // since the profile (the part visible to the app) is already gone.
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(sellerId);
+  if (authDeleteError) {
+    console.warn(
+      `[Sellers] Failed to delete auth user ${sellerId}: ${authDeleteError.message}`,
+    );
   }
 }

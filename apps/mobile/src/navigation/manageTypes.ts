@@ -3,11 +3,18 @@ export type ManageStackParamList = {
   DistributorList: undefined;
   DistributorDetail: { distributorId: string; distributorName: string };
   AddSeller: undefined;
+  EditSeller: { distributorId: string };
   ResetPassword: { distributorId: string; distributorName: string };
   CountryList: undefined;
   AddCountry: undefined;
+  EditCountry: { countryId: string };
+  ProductList: undefined;
   AddEditProduct: { productId?: string };
   PostNews: undefined;
+  ManageNews: undefined;
+  EditNews: { newsId: string };
   AddArticle: undefined;
+  ManageArticles: undefined;
+  EditArticle: { articleId: string };
   PendingPayments: undefined;
 };

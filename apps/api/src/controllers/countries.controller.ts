@@ -22,7 +22,7 @@ export async function listCountriesHandler(
 
 /**
  * POST /api/countries
- * Creates a new country. Staff only.
+ * Creates a new country. Admin only.
  */
 export async function createCountryHandler(
   req: Request,
@@ -56,6 +56,29 @@ export async function updateCountryHandler(
     const input = req.body as UpdateCountryInput;
     const country = await countriesService.updateCountry(id, input);
     res.status(200).json(country);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/countries/:id/deactivate
+ * Soft-deactivates a country. Blocked if profiles/products still reference
+ * it. Staff only.
+ */
+export async function deactivateCountryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const id = req.params['id'];
+    if (!id) {
+      throw new ApiError(400, 'Country ID is required');
+    }
+
+    await countriesService.deactivateCountry(id);
+    res.status(200).json({ message: 'Country deactivated successfully' });
   } catch (err) {
     next(err);
   }

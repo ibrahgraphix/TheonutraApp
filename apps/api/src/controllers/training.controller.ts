@@ -177,3 +177,27 @@ export async function deactivateMaterialHandler(
     next(err);
   }
 }
+
+/**
+ * DELETE /api/training/materials/:id/permanent
+ * Permanently deletes a training material AND its Cloudinary PDF (staff only).
+ */
+export async function hardDeleteMaterialHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+    const { id } = req.params;
+    if (!id || Array.isArray(id)) {
+      throw new ApiError(400, 'Material ID is required');
+    }
+    await trainingService.hardDeleteMaterial(id as string);
+    res.status(200).json({ message: 'Training material permanently deleted' });
+  } catch (err) {
+    next(err);
+  }
+}

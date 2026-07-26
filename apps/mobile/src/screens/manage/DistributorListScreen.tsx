@@ -1,21 +1,33 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { Avatar, Badge, ListItem, ShopHeader } from '../../components';
+import { Avatar, Badge, ConfirmModal, ListItem, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { searchDistributors } from '../../services/api';
+import { deactivateSeller, hardDeleteSeller, searchDistributors } from '../../services/api';
 import type { Distributor } from '../../types';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'DistributorList'>;
+type ConfirmAction = { type: 'deactivate' | 'delete'; distributor: Distributor } | null;
 
 export function DistributorListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [query, setQuery] = useState('');
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async (q: string) => {
     setLoading(true);
@@ -28,6 +40,27 @@ export function DistributorListScreen() {
     const timer = setTimeout(() => load(query), 300);
     return () => clearTimeout(timer);
   }, [query, load]);
+
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    setProcessing(true);
+    try {
+      if (confirmAction.type === 'deactivate') {
+        await deactivateSeller(confirmAction.distributor.id);
+      } else {
+        await hardDeleteSeller(confirmAction.distributor.id);
+      }
+      setConfirmAction(null);
+      await load(query);
+    } catch (err) {
+      Alert.alert(
+        confirmAction.type === 'deactivate' ? 'Cannot deactivate' : 'Cannot delete',
+        err instanceof Error ? err.message : 'Action failed.',
+      );
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -75,18 +108,41 @@ export function DistributorListScreen() {
               }
               right={
                 <View style={styles.itemActions}>
-                  <Badge label={item.role.replace('_', ' ')} variant="neutral" />
-                  <Pressable
-                    onPress={() =>
-                      navigation.navigate('ResetPassword', {
-                        distributorId: item.id,
-                        distributorName: item.fullName,
-                      })
-                    }
-                    style={styles.resetAction}
-                  >
-                    <Text style={styles.resetActionText}>Reset</Text>
-                  </Pressable>
+                  <View style={styles.badgeRow}>
+                    <Badge label={item.role.replace('_', ' ')} variant="neutral" />
+                    {item.isActive === false ? <Badge label="Inactive" variant="error" /> : null}
+                  </View>
+                  <View style={styles.actionRow}>
+                    <Pressable
+                      onPress={() => navigation.navigate('EditSeller', { distributorId: item.id })}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.actionText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        navigation.navigate('ResetPassword', {
+                          distributorId: item.id,
+                          distributorName: item.fullName,
+                        })
+                      }
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.actionText}>Reset</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setConfirmAction({ type: 'deactivate', distributor: item })}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.deactivateText}>Deactivate</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setConfirmAction({ type: 'delete', distributor: item })}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.deleteText}>Delete</Text>
+                    </Pressable>
+                  </View>
                 </View>
               }
               subtitle={`${item.distributorId} · ${item.country}`}
@@ -95,6 +151,21 @@ export function DistributorListScreen() {
           )}
         />
       )}
+
+      <ConfirmModal
+        confirmLabel={confirmAction?.type === 'delete' ? 'Delete Forever' : 'Deactivate'}
+        destructive
+        loading={processing}
+        message={
+          confirmAction?.type === 'delete'
+            ? `Permanently delete ${confirmAction.distributor.fullName}? This only works if they have no downline, orders, or commissions — otherwise deactivate instead.`
+            : `Deactivate ${confirmAction?.distributor.fullName}? They will be blocked from logging in, but their history stays intact.`
+        }
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={handleConfirm}
+        title={confirmAction?.type === 'delete' ? 'Delete Distributor?' : 'Deactivate Distributor?'}
+        visible={confirmAction !== null}
+      />
     </View>
   );
 }
@@ -140,17 +211,33 @@ const styles = StyleSheet.create({
   },
   itemActions: {
     alignItems: 'flex-end',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  resetAction: {
-    borderColor: colors.primary,
+  badgeRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  actionBtn: {
+    borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  resetActionText: {
+  actionText: {
     ...typography.caption,
     color: colors.primary,
+  },
+  deactivateText: {
+    ...typography.caption,
+    color: colors.warning ?? '#f59e0b',
+  },
+  deleteText: {
+    ...typography.caption,
+    color: colors.error,
   },
 });

@@ -60,6 +60,25 @@ export async function getSellerByIdHandler(
   }
 }
 
+export async function updateSellerHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    if (!id) {
+      throw new ApiError(400, 'Seller ID is required');
+    }
+
+    const input = req.body as sellersService.UpdateSellerInput;
+    const seller = await sellersService.updateSeller(id, input);
+    res.status(200).json(seller);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function resetSellerPasswordHandler(
   req: Request,
   res: Response,
@@ -94,6 +113,25 @@ export async function deactivateSellerHandler(
     await sellersService.deactivateSeller(id);
 
     res.status(200).json({ message: 'Seller deactivated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function hardDeleteSellerHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    if (!id) {
+      throw new ApiError(400, 'Seller ID is required');
+    }
+
+    await sellersService.hardDeleteSeller(id);
+
+    res.status(200).json({ message: 'Seller permanently deleted' });
   } catch (err) {
     next(err);
   }

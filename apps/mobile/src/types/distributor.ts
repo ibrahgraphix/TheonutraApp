@@ -12,4 +12,5 @@ export interface Distributor {
   joinDate: string;
   avatarUrl?: string;
   email?: string;
+  isActive?: boolean;
 }

@@ -34,19 +34,19 @@ export function ManageHomeScreen() {
           <ShortcutButton
             icon="📦"
             label="Products"
-            onPress={() => navigation.navigate('AddEditProduct', {})}
+            onPress={() => navigation.navigate('ProductList')}
           />
           <ShortcutButton
             icon="📰"
-            label="Post News"
-            onPress={() => navigation.navigate('PostNews')}
+            label="News"
+            onPress={() => navigation.navigate('ManageNews')}
           />
         </View>
         <View style={styles.grid}>
           <ShortcutButton
             icon="📚"
-            label="Post Article"
-            onPress={() => navigation.navigate('AddArticle')}
+            label="Articles"
+            onPress={() => navigation.navigate('ManageArticles')}
           />
           <ShortcutButton
             icon="💳"

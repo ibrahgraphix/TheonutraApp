@@ -10,6 +10,7 @@ import {
   createMaterialHandler,
   updateMaterialHandler,
   deactivateMaterialHandler,
+  hardDeleteMaterialHandler,
 } from '../controllers/training.controller.js';
 
 const router = Router();
@@ -28,5 +29,6 @@ router.put('/categories/:id', requireStaff, updateCategoryHandler);
 router.post('/materials', requireStaff, createMaterialHandler);
 router.put('/materials/:id', requireStaff, updateMaterialHandler);
 router.delete('/materials/:id', requireStaff, deactivateMaterialHandler);
+router.delete('/materials/:id/permanent', requireStaff, hardDeleteMaterialHandler);
 
 export default router;

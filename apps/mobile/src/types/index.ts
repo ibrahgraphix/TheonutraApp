@@ -14,3 +14,5 @@ export type { Commission, CommissionType } from './commission';
 export type { Article } from './article';
 export type { NewsPost } from './news';
 export type { TeamMember, DashboardStats, MonthlyAnalysis } from './team';
+export * from './phase1';
+

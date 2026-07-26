@@ -1,12 +1,11 @@
-//CountryListScreen
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ListItem, ShopHeader } from '../../components';
+import { Badge, ConfirmModal, ListItem, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { getCountries } from '../../services/api';
+import { deactivateCountry, getCountries } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import type { Country } from '../../types';
 import { colors, spacing, typography } from '../../theme';
@@ -15,10 +14,6 @@ type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'CountryLi
 
 export function CountryListScreen() {
   const navigation = useNavigation<NavigationProp>();
-  // Match the staff check used everywhere else in the app (backend's
-  // requireStaff middleware, MainNavigator's Manage tab) — both 'admin'
-  // and 'company_staff' count as staff. Narrowing to 'admin' only here
-  // was why the + Add button silently never showed for company_staff logins.
   const isStaff = useAuthStore((s) => {
     const role = s.distributor?.role;
     return role === 'admin' || role === 'company_staff';
@@ -26,6 +21,8 @@ export function CountryListScreen() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<Country | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +42,23 @@ export function CountryListScreen() {
       void load();
     }, [load]),
   );
+
+  const handleDeactivate = async () => {
+    if (!confirmTarget) return;
+    setDeactivating(true);
+    try {
+      await deactivateCountry(confirmTarget.id);
+      setConfirmTarget(null);
+      await load();
+    } catch (err) {
+      Alert.alert(
+        'Cannot deactivate',
+        err instanceof Error ? err.message : 'Failed to deactivate country.',
+      );
+    } finally {
+      setDeactivating(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -85,12 +99,42 @@ export function CountryListScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <ListItem
+              onPress={isStaff ? () => navigation.navigate('EditCountry', { countryId: item.id }) : undefined}
+              right={
+                isStaff ? (
+                  <View style={styles.itemActions}>
+                    <Pressable
+                      onPress={() => navigation.navigate('EditCountry', { countryId: item.id })}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.actionText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setConfirmTarget(item)}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.deactivateText}>Deactivate</Text>
+                    </Pressable>
+                  </View>
+                ) : undefined
+              }
               subtitle={`${item.isoCode} · ${item.currencyCode}`}
               title={item.name}
             />
           )}
         />
       )}
+
+      <ConfirmModal
+        confirmLabel="Deactivate"
+        destructive
+        loading={deactivating}
+        message={`This will deactivate ${confirmTarget?.name ?? 'this country'}. It will be blocked if any distributor or product still references it.`}
+        onCancel={() => setConfirmTarget(null)}
+        onConfirm={handleDeactivate}
+        title="Deactivate Country?"
+        visible={confirmTarget !== null}
+      />
     </View>
   );
 }
@@ -114,5 +158,23 @@ const styles = StyleSheet.create({
   headerActionText: {
     ...typography.label,
     color: colors.textOnPrimary,
+  },
+  itemActions: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  actionBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  actionText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  deactivateText: {
+    ...typography.caption,
+    color: colors.error,
+    fontWeight: '600',
   },
 });

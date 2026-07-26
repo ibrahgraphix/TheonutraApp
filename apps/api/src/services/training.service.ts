@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import { deleteCloudinaryAsset } from './uploads.service.js';
 
 export interface TrainingCategory {
   id: string;
@@ -240,12 +241,29 @@ export async function createMaterial(
 }
 
 /**
- * Updates an existing training material (staff only).
+ * Updates an existing training material (staff only). If pdf_url changes,
+ * deletes the old Cloudinary PDF (raw resource type) after a successful update.
  */
 export async function updateMaterial(
   materialId: string,
   input: UpdateMaterialInput,
 ): Promise<TrainingMaterial> {
+  // Fetch existing to know the old pdf_url before updating
+  const { data: existing, error: fetchError } = await supabase
+    .from('training_materials')
+    .select('pdf_url')
+    .eq('id', materialId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch training material: ${fetchError.message}`);
+  }
+  if (!existing) {
+    throw new ApiError(404, 'Training material not found');
+  }
+
+  const oldPdfUrl = existing.pdf_url as string | null;
+
   const { data, error } = await supabase
     .from('training_materials')
     .update({
@@ -271,6 +289,10 @@ export async function updateMaterial(
     throw new ApiError(404, 'Training material not found');
   }
 
+  if (input.pdf_url !== undefined && input.pdf_url !== oldPdfUrl) {
+    await deleteCloudinaryAsset(oldPdfUrl, 'raw');
+  }
+
   const material = data as any;
   return {
     ...material,
@@ -279,7 +301,8 @@ export async function updateMaterial(
 }
 
 /**
- * Deactivates a training material (soft delete, staff only).
+ * Deactivates a training material (soft delete, staff only). Keeps the
+ * Cloudinary PDF in place — use hardDeleteMaterial to also remove it.
  */
 export async function deactivateMaterial(materialId: string): Promise<void> {
   const { error } = await supabase
@@ -293,4 +316,35 @@ export async function deactivateMaterial(materialId: string): Promise<void> {
   if (error) {
     throw new ApiError(404, 'Training material not found');
   }
+}
+
+/**
+ * Permanently deletes a training material row AND its Cloudinary PDF.
+ * Use this instead of deactivateMaterial when the admin wants it fully
+ * gone (e.g. to reclaim Cloudinary free-tier storage), not just hidden.
+ */
+export async function hardDeleteMaterial(materialId: string): Promise<void> {
+  const { data, error: fetchError } = await supabase
+    .from('training_materials')
+    .select('pdf_url')
+    .eq('id', materialId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch training material: ${fetchError.message}`);
+  }
+  if (!data) {
+    throw new ApiError(404, 'Training material not found');
+  }
+
+  const { error } = await supabase
+    .from('training_materials')
+    .delete()
+    .eq('id', materialId);
+
+  if (error) {
+    throw new ApiError(500, `Failed to delete training material: ${error.message}`);
+  }
+
+  await deleteCloudinaryAsset(data.pdf_url as string | null, 'raw');
 }

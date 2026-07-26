@@ -9,15 +9,23 @@ import {
   createProductHandler,
   updateProductHandler,
   deactivateProductHandler,
+  listProductsForAdminHandler,
+  getProductForAdminHandler,
 } from '../controllers/products.controller.js';
 
 const router = Router();
 
+// GET /api/products/admin/list — staff only, ALL products + ALL price rows
+// Must be declared BEFORE /:id and /:id/admin to avoid /:id swallowing "admin"
+router.get('/admin/list', authMiddleware, requireStaff, listProductsForAdminHandler);
+
 // GET /api/products?countryId=<uuid> — any authenticated user
 router.get('/', authMiddleware, listProductsByCountryHandler);
 
+// GET /api/products/:id/admin — staff only, single product + ALL price rows
+router.get('/:id/admin', authMiddleware, requireStaff, getProductForAdminHandler);
+
 // GET /api/products/:id?countryId=<uuid> — any authenticated user
-// (must be declared before /:id/deactivate to avoid route conflicts)
 router.get('/:id', authMiddleware, getProductByIdHandler);
 
 // POST /api/products — staff only

@@ -1,7 +1,8 @@
 /**
  * src/services/uploads.service.ts
  *
- * Cloudinary Image Upload Service for Products, Articles, and News.
+ * Cloudinary Image Upload Service for Products, Articles, News, and PDF
+ * cleanup for Training Materials / KYC documents.
  *
  * Image size/capacity control limits (Free Tier Optimization):
  * - Max Width: 1200px (cap resolution to prevent huge images)
@@ -68,18 +69,31 @@ export async function getCloudinarySignature(): Promise<CloudinarySignatureRespo
  * Deletes a Cloudinary asset by its URL.
  * Extracts the public_id from the URL and calls Cloudinary's destroy API.
  * This is a "best effort" cleanup - failures are logged but don't throw errors.
+ *
+ * @param assetUrl      the full Cloudinary secure_url stored in the DB
+ * @param resourceType  'image' (default — products/articles/news/KYC photos)
+ *                       or 'raw' (PDFs — training materials)
  */
-export async function deleteCloudinaryAsset(imageUrl: string | null | undefined): Promise<void> {
+export async function deleteCloudinaryAsset(
+  assetUrl: string | null | undefined,
+  resourceType: 'image' | 'raw' = 'image',
+): Promise<void> {
   // Skip if no URL provided
-  if (!imageUrl) {
+  if (!assetUrl) {
     return;
   }
 
-  // Check if this is a Cloudinary URL
-  // Cloudinary URLs typically look like: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/public_id.format
-  const cloudinaryUrlPattern = /^https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//;
-  if (!cloudinaryUrlPattern.test(imageUrl)) {
-    // Not a Cloudinary URL - skip silently (could be leftover test data)
+  // Check if this is a Cloudinary URL of the expected resource type.
+  // Cloudinary URLs look like:
+  //   https://res.cloudinary.com/cloud_name/image/upload/v123/public_id.ext
+  //   https://res.cloudinary.com/cloud_name/raw/upload/v123/public_id.ext
+  const pattern =
+    resourceType === 'raw'
+      ? /^https?:\/\/res\.cloudinary\.com\/[^/]+\/raw\/upload\//
+      : /^https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//;
+
+  if (!pattern.test(assetUrl)) {
+    // Not a Cloudinary URL of this resource type - skip silently (could be leftover test data)
     return;
   }
 
@@ -91,33 +105,50 @@ export async function deleteCloudinaryAsset(imageUrl: string | null | undefined)
       api_secret: env.CLOUDINARY_API_SECRET,
     });
 
-    // Extract public_id from URL
-    // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/folder/public_id.format
-    // We need to extract everything after the version (v1234567890) and remove the file extension
-    const urlParts = imageUrl.split('/image/upload/');
+    const marker = resourceType === 'raw' ? '/raw/upload/' : '/image/upload/';
+    const urlParts = assetUrl.split(marker);
     if (urlParts.length < 2) {
-      console.warn(`[Cloudinary] Could not extract public_id from URL: ${imageUrl}`);
+      console.warn(`[Cloudinary] Could not extract public_id from URL: ${assetUrl}`);
       return;
     }
 
-    // The part after /image/upload/ contains version and public_id
+    // The part after the marker contains version and public_id
     // Format: v1234567890/folder/public_id.format
     const afterUpload = urlParts[1];
-    
+
     // Remove version prefix (v followed by digits)
     const withoutVersion = afterUpload.replace(/^v\d+\//, '');
-    
-    // Remove file extension (everything after the last dot)
-    const publicId = withoutVersion.replace(/\.[^.]+$/, '');
 
-    // Call Cloudinary destroy API
-    const result = await cloudinary.uploader.destroy(publicId);
+    // For images, Cloudinary's public_id excludes the file extension.
+    // For raw resources (PDFs), the public_id INCLUDES the extension —
+    // stripping it would target the wrong asset and fail to delete it.
+    const publicId =
+      resourceType === 'raw' ? withoutVersion : withoutVersion.replace(/\.[^.]+$/, '');
+
+    // Call Cloudinary destroy API with the matching resource_type
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+    });
 
     if (result.result !== 'ok' && result.result !== 'not found') {
       console.warn(`[Cloudinary] Failed to delete asset ${publicId}: ${result.result}`);
     }
   } catch (error) {
-    // Log warning but don't throw - DB update should still succeed
-    console.warn(`[Cloudinary] Error deleting asset: ${error instanceof Error ? error.message : String(error)}`);
+    // Log warning but don't throw - DB update/delete should still succeed
+    console.warn(
+      `[Cloudinary] Error deleting asset: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
+}
+
+/**
+ * Deletes multiple Cloudinary assets of the same resource type in parallel.
+ * Convenience wrapper for cases like KYC submissions with several document
+ * URLs (front/back/selfie) that all need cleanup together.
+ */
+export async function deleteCloudinaryAssets(
+  assetUrls: Array<string | null | undefined>,
+  resourceType: 'image' | 'raw' = 'image',
+): Promise<void> {
+  await Promise.all(assetUrls.map((url) => deleteCloudinaryAsset(url, resourceType)));
 }

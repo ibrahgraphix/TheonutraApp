@@ -1,8 +1,10 @@
+//MainNavigator
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StyleSheet, Text } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AccountScreen } from '../screens/account/AccountScreen';
+import { AccountNavigator } from './AccountNavigator';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { useAuthStore } from '../store/authStore';
 import { colors, spacing, typography } from '../theme';
@@ -10,12 +12,21 @@ import { ManageNavigator } from './ManageNavigator';
 import { ShopNavigator } from './ShopNavigator';
 import { TeamNavigator } from './TeamNavigator';
 import type { MainTabParamList } from './types';
+import { getNotificationUnreadCount } from '../services/api';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TAB_BAR_CONTENT_HEIGHT = 56;
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+function TabIcon({
+  label,
+  focused,
+  badge,
+}: {
+  label: string;
+  focused: boolean;
+  badge?: number;
+}) {
   const icons: Record<string, string> = {
     Home: '🏠',
     Shop: '🛒',
@@ -25,7 +36,14 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   };
 
   return (
-    <Text style={[styles.icon, focused && styles.iconFocused]}>{icons[label] ?? '•'}</Text>
+    <View>
+      <Text style={[styles.icon, focused && styles.iconFocused]}>{icons[label] ?? '•'}</Text>
+      {badge != null && badge > 0 ? (
+        <View style={styles.notifBadge}>
+          <Text style={styles.notifBadgeText}>{badge > 9 ? '9+' : badge}</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -43,6 +61,32 @@ export function MainNavigator() {
 
   const bottomInset = Math.max(insets.bottom, spacing.sm);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchUnread = async () => {
+    try {
+      const { count } = await getNotificationUnreadCount();
+      setUnreadCount(count ?? 0);
+    } catch {
+      // silently ignore — not logged-in yet or endpoint unavailable
+    }
+  };
+
+  useEffect(() => {
+    void fetchUnread();
+    intervalRef.current = setInterval(() => void fetchUnread(), 60_000);
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void fetchUnread();
+    });
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      sub.remove();
+    };
+  }, []);
+
   return (
     <Tab.Navigator
       key={[showTeam, showManage].join('-')}
@@ -59,13 +103,19 @@ export function MainNavigator() {
           height: TAB_BAR_CONTENT_HEIGHT + bottomInset,
         },
         tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({ focused }) => <TabIcon focused={focused} label={route.name} />,
+        tabBarIcon: ({ focused }) => (
+          <TabIcon
+            focused={focused}
+            label={route.name}
+            badge={route.name === 'Account' ? unreadCount : undefined}
+          />
+        ),
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Shop" component={ShopNavigator} />
       {showTeam ? <Tab.Screen name="Team" component={TeamNavigator} /> : null}
-      <Tab.Screen name="Account" component={AccountScreen} />
+      <Tab.Screen name="Account" component={AccountNavigator} />
       {showManage ? (
         <Tab.Screen name="Manage" component={ManageNavigator} />
       ) : null}
@@ -85,5 +135,22 @@ const styles = StyleSheet.create({
   },
   iconFocused: {
     opacity: 1,
+  },
+  notifBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    height: 16,
+    justifyContent: 'center',
+    minWidth: 16,
+    paddingHorizontal: 3,
+    position: 'absolute',
+    right: -8,
+    top: -4,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
   },
 });

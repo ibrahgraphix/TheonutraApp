@@ -8,6 +8,7 @@ import {
   listCountriesHandler,
   createCountryHandler,
   updateCountryHandler,
+  deactivateCountryHandler,
 } from '../controllers/countries.controller.js';
 
 const router = Router();
@@ -20,5 +21,8 @@ router.post('/', authMiddleware, requireAdmin, validate(CreateCountrySchema), cr
 
 // PATCH /api/countries/:id — staff can toggle/update; creating is admin-only
 router.patch('/:id', authMiddleware, requireStaff, validate(UpdateCountrySchema), updateCountryHandler);
+
+// PATCH /api/countries/:id/deactivate — staff only, blocked if referenced
+router.patch('/:id/deactivate', authMiddleware, requireStaff, deactivateCountryHandler);
 
 export default router;

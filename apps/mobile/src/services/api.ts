@@ -1,3 +1,4 @@
+//api.ts
 import Constants from 'expo-constants';
 import type {
   Article,
@@ -1280,4 +1281,854 @@ export function getCurrencyForCountry(country: string): string {
     'South Africa': 'ZAR',
   };
   return map[country] ?? 'USD';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 API Services
+// ─────────────────────────────────────────────────────────────────────────────
+
+import type {
+  RankProgress,
+  CustomerSale,
+  LogCustomerSaleInput,
+  TeamBonusSummary,
+  TeamBonusRate,
+  WalletBalance,
+  Transaction,
+  WithdrawalRequest,
+  WithdrawalMethod,
+  KycSubmission,
+  SubmitKycInput,
+  ReferralInfo,
+  Notification,
+  TrainingCategory,
+  TrainingMaterial,
+  Event,
+  EventType,
+  LoyaltyData,
+  AuditLogEntry,
+  Rank,
+} from '../types';
+
+// ── Ranks & PV ───────────────────────────────────────────────────────────────
+
+export async function getRanks(): Promise<Rank[]> {
+  const response = await fetch(`${API_BASE_URL}/api/ranks`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch ranks'));
+  return response.json();
+}
+
+export async function getMyRankProgress(): Promise<RankProgress> {
+  const response = await fetch(`${API_BASE_URL}/api/ranks/me`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch rank progress'));
+  return response.json();
+}
+
+export async function promoteDistributor(
+  distributorId: string,
+  newRankId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/ranks/${encodeURIComponent(distributorId)}/promote`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify({ newRankId }),
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to promote distributor'));
+}
+
+// ── Customer Sales ────────────────────────────────────────────────────────────
+
+export async function logCustomerSale(
+  input: LogCustomerSaleInput,
+): Promise<CustomerSale> {
+  const response = await fetch(`${API_BASE_URL}/api/customer-sales`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to log customer sale'));
+  return response.json();
+}
+
+export async function getMyCustomerSales(
+  page = 1,
+  limit = 20,
+): Promise<{ sales: CustomerSale[]; total: number; page: number; limit: number }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/customer-sales?page=${page}&limit=${limit}`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch customer sales'));
+  return response.json();
+}
+
+// ── Team Bonus ────────────────────────────────────────────────────────────────
+
+export async function getMyTeamBonusSummary(period?: string): Promise<TeamBonusSummary> {
+  const url = period
+    ? `${API_BASE_URL}/api/team-bonus/my-summary?period=${encodeURIComponent(period)}`
+    : `${API_BASE_URL}/api/team-bonus/my-summary`;
+  const response = await fetch(url, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch team bonus summary'));
+  return response.json();
+}
+
+export async function getTeamBonusRates(): Promise<TeamBonusRate[]> {
+  const response = await fetch(`${API_BASE_URL}/api/team-bonus/rates`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch team bonus rates'));
+  return response.json();
+}
+
+export async function updateTeamBonusRates(
+  rates: Array<{ rankId: string; level: number; percentage: number }>,
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/team-bonus/rates`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({ rates }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update team bonus rates'));
+}
+
+export async function runTeamBonusBatch(
+  period: string,
+): Promise<{ processed: number; skipped: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/team-bonus/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({ period }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to run team bonus batch'));
+  return response.json();
+}
+
+// ── Wallet & Withdrawals ──────────────────────────────────────────────────────
+
+export async function getMyWallet(): Promise<WalletBalance> {
+  const response = await fetch(`${API_BASE_URL}/api/wallet/me`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch wallet'));
+  return response.json();
+}
+
+export async function getMyTransactions(
+  page = 1,
+  limit = 20,
+): Promise<{ transactions: Transaction[]; total: number; page: number; limit: number }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/transactions?page=${page}&limit=${limit}`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch transactions'));
+  return response.json();
+}
+
+export async function requestWithdrawal(
+  amount: number,
+  method: WithdrawalMethod,
+  payoutDetails: string,
+): Promise<{ id: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/wallet/withdrawals`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({ amount, method, payoutDetails }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to request withdrawal'));
+  return response.json();
+}
+
+export async function getMyWithdrawals(): Promise<WithdrawalRequest[]> {
+  const response = await fetch(`${API_BASE_URL}/api/wallet/withdrawals`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch withdrawals'));
+  return response.json();
+}
+
+export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequest[]> {
+  const url = status
+    ? `${API_BASE_URL}/api/wallet/withdrawals/all?status=${encodeURIComponent(status)}`
+    : `${API_BASE_URL}/api/wallet/withdrawals/all`;
+  const response = await fetch(url, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch all withdrawals'));
+  return response.json();
+}
+
+export async function approveWithdrawal(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/withdrawals/${encodeURIComponent(id)}/approve`,
+    {
+      method: 'PUT',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to approve withdrawal'));
+}
+
+export async function rejectWithdrawal(id: string, notes: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/withdrawals/${encodeURIComponent(id)}/reject`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify({ notes }),
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject withdrawal'));
+}
+
+export async function markWithdrawalPaid(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/withdrawals/${encodeURIComponent(id)}/mark-paid`,
+    {
+      method: 'PUT',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark withdrawal as paid'));
+}
+
+// ── KYC ───────────────────────────────────────────────────────────────────────
+
+export async function submitKyc(
+  data: SubmitKycInput,
+): Promise<KycSubmission> {
+  const response = await fetch(`${API_BASE_URL}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to submit KYC'));
+  return response.json();
+}
+
+export async function getMyKyc(): Promise<{ status: string; submission: KycSubmission | null }> {
+  const response = await fetch(`${API_BASE_URL}/api/kyc/me`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch KYC status'));
+  return response.json();
+}
+
+export async function getPendingKyc(
+  page = 1,
+  limit = 20,
+): Promise<{ submissions: KycSubmission[]; total: number; page: number; limit: number }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/kyc/pending?page=${page}&limit=${limit}`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch pending KYC'));
+  return response.json();
+}
+
+export async function getKycSubmission(id: string): Promise<KycSubmission> {
+  const response = await fetch(`${API_BASE_URL}/api/kyc/${encodeURIComponent(id)}`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch KYC submission'));
+  return response.json();
+}
+
+export async function reviewKyc(
+  id: string,
+  decision: 'approve' | 'reject' | 'request_resubmission',
+  reason?: string,
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/kyc/${encodeURIComponent(id)}/review`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({ decision, reason }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to review KYC'));
+}
+
+// ── Referrals ─────────────────────────────────────────────────────────────────
+
+export async function getMyReferralInfo(): Promise<ReferralInfo> {
+  const response = await fetch(`${API_BASE_URL}/api/referral/me`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch referral info'));
+  const data = await response.json();
+  return {
+    referral_code: data.referral_code ?? data.referralCode ?? '',
+    referral_link: data.referral_link ?? data.referralLink ?? '',
+  };
+}
+
+export async function regenerateReferralCode(
+  distributorId: string,
+): Promise<{ referral_code: string; message: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/referral/${encodeURIComponent(distributorId)}/regenerate`,
+    {
+      method: 'PUT',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to regenerate referral code'));
+  return response.json();
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export async function getMyNotifications(
+  unreadOnly?: boolean,
+): Promise<Notification[]> {
+  const url = unreadOnly
+    ? `${API_BASE_URL}/api/notifications?unread=true`
+    : `${API_BASE_URL}/api/notifications`;
+  const response = await fetch(url, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch notifications'));
+  const data = await response.json();
+  // Backend may return a raw array or a paginated { notifications: [...] } wrapper —
+  // handle both so the screen never receives a non-array.
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.notifications)) return data.notifications;
+  return [];
+}
+
+export async function getNotificationUnreadCount(): Promise<{ count: number }> {
+  const response = await fetch(`${API_BASE_URL}/api/notifications/unread-count`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch unread count'));
+  return response.json();
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/notifications/${encodeURIComponent(id)}/read`,
+    {
+      method: 'PUT',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark notification read'));
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+    method: 'PUT',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark all notifications read'));
+}
+
+// ── Training Academy ──────────────────────────────────────────────────────────
+
+export async function listTrainingCategories(): Promise<TrainingCategory[]> {
+  const response = await fetch(`${API_BASE_URL}/api/training/categories`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch training categories'));
+  return response.json();
+}
+
+export async function listMaterialsByCategory(
+  categoryId: string,
+): Promise<TrainingMaterial[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/training/categories/${encodeURIComponent(categoryId)}/materials`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch training materials'));
+  return response.json();
+}
+
+export async function createTrainingCategory(data: {
+  name: string;
+  description?: string;
+  sort_order?: number;
+}): Promise<TrainingCategory> {
+  const response = await fetch(`${API_BASE_URL}/api/training/categories`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to create training category'));
+  return response.json();
+}
+
+export async function updateTrainingCategory(
+  id: string,
+  data: { name?: string; description?: string; sort_order?: number },
+): Promise<TrainingCategory> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/training/categories/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify(data),
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update training category'));
+  return response.json();
+}
+
+export async function createTrainingMaterial(data: {
+  category_id: string;
+  title: string;
+  description?: string;
+  pdf_url: string;
+}): Promise<TrainingMaterial> {
+  const response = await fetch(`${API_BASE_URL}/api/training/materials`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to create training material'));
+  return response.json();
+}
+
+export async function deactivateTrainingMaterial(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/training/materials/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to deactivate material'));
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+export async function listUpcomingEvents(type?: EventType): Promise<Event[]> {
+  const url = type
+    ? `${API_BASE_URL}/api/events?event_type=${encodeURIComponent(type)}`
+    : `${API_BASE_URL}/api/events`;
+  const response = await fetch(url, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch upcoming events'));
+  return response.json();
+}
+
+export async function listPastEvents(): Promise<Event[]> {
+  const response = await fetch(`${API_BASE_URL}/api/events/past`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch past events'));
+  return response.json();
+}
+
+export async function createEvent(data: {
+  title: string;
+  description?: string;
+  event_type: EventType;
+  location?: string;
+  is_online?: boolean;
+  meeting_note?: string;
+  start_at: string;
+  end_at: string;
+  banner_image_url?: string;
+}): Promise<Event> {
+  const response = await fetch(`${API_BASE_URL}/api/events`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to create event'));
+  return response.json();
+}
+
+export async function updateEvent(
+  id: string,
+  data: Partial<{
+    title: string;
+    description: string;
+    event_type: EventType;
+    location: string;
+    is_online: boolean;
+    meeting_note: string;
+    start_at: string;
+    end_at: string;
+    banner_image_url: string;
+  }>,
+): Promise<Event> {
+  const response = await fetch(`${API_BASE_URL}/api/events/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update event'));
+  return response.json();
+}
+
+export async function deactivateEvent(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/events/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to deactivate event'));
+}
+
+// ── Loyalty Points ────────────────────────────────────────────────────────────
+
+export async function getMyLoyalty(page = 1, limit = 20): Promise<LoyaltyData> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/loyalty/me?page=${page}&limit=${limit}`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch loyalty data'));
+  return response.json();
+}
+
+// ── Audit Logs ────────────────────────────────────────────────────────────────
+
+export async function getAuditLogs(
+  filters?: {
+    entity_type?: string;
+    actor_id?: string;
+    date_from?: string;
+    date_to?: string;
+  },
+  page = 1,
+  limit = 20,
+): Promise<{ entries: AuditLogEntry[]; total: number; page: number; limit: number }> {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (filters?.entity_type) params.set('entity_type', filters.entity_type);
+  if (filters?.actor_id) params.set('actor_id', filters.actor_id);
+  if (filters?.date_from) params.set('date_from', filters.date_from);
+  if (filters?.date_to) params.set('date_to', filters.date_to);
+
+  const response = await fetch(`${API_BASE_URL}/api/audit-log?${params.toString()}`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch audit logs'));
+  return response.json();
+}
+
+// ── Manual Bonuses ────────────────────────────────────────────────────────────
+
+export async function awardManualBonus(data: {
+  distributorId: string;
+  bonusCategory: 'leadership' | 'rank_achievement' | 'monthly_performance' | 'other';
+  amount: number;
+  note?: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/manual-bonuses`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to award manual bonus'));
+}
+
+export async function listAllManualBonuses(filters?: {
+  category?: string;
+  distributorId?: string;
+  page?: number;
+  limit?: number;
+}): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (filters?.category) params.set('category', filters.category);
+  if (filters?.distributorId) params.set('distributorId', filters.distributorId);
+  if (filters?.page) params.set('page', String(filters.page));
+  if (filters?.limit) params.set('limit', String(filters.limit));
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/manual-bonuses?${params.toString()}`,
+    {
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch manual bonuses'));
+  return response.json();
+}
+// ── Products: admin CRUD ──────────────────────────────────────────────────────
+
+export interface AdminProductPrice {
+  countryId: string;
+  countryName: string;
+  currencyCode: string;
+  price: number;
+  distributorPrice: number;
+  isAvailable: boolean;
+}
+
+export interface AdminProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  pv: number;
+  pricing: AdminProductPrice[];
+}
+
+export async function listProductsForAdmin(): Promise<AdminProduct[]> {
+  const response = await fetch(`${API_BASE_URL}/api/products/admin/list`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to list products'));
+  return response.json();
+}
+
+export async function getProductForAdmin(id: string): Promise<AdminProduct> {
+  const response = await fetch(`${API_BASE_URL}/api/products/${encodeURIComponent(id)}/admin`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch product'));
+  return response.json();
+}
+
+export async function updateProduct(
+  id: string,
+  input: {
+    name?: string;
+    description?: string;
+    imageUrl?: string;
+    pv?: number;
+    prices?: Array<{ countryId: string; price: number; distributorPrice: number; isAvailable: boolean }>;
+  },
+): Promise<AdminProduct> {
+  const response = await fetch(`${API_BASE_URL}/api/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update product'));
+  return response.json();
+}
+
+export async function deactivateProduct(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/products/${encodeURIComponent(id)}/deactivate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to deactivate product'));
+}
+
+// ── Countries: edit/deactivate (admin CRUD) ───────────────────────────────────
+
+export async function updateCountry(
+  id: string,
+  input: Partial<{ name: string; isoCode: string; currencyCode: string; isActive: boolean }>,
+): Promise<Country> {
+  const response = await fetch(`${API_BASE_URL}/api/countries/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update country'));
+  return response.json();
+}
+
+export async function deactivateCountry(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/countries/${encodeURIComponent(id)}/deactivate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to deactivate country'));
+}
+
+// ── Articles: edit/delete (admin CRUD) ────────────────────────────────────────
+
+export async function updateArticle(
+  id: string,
+  article: Partial<Pick<Article, 'title' | 'summary' | 'content' | 'imageUrl'>>,
+): Promise<Article> {
+  const body: Record<string, unknown> = {};
+  if (article.title !== undefined) body.title = article.title.trim();
+  if (article.summary !== undefined || article.content !== undefined) {
+    // Backend has a single `body` field — same combine pattern as createArticle.
+    const summary = article.summary?.trim() ?? '';
+    const content = article.content?.trim() ?? '';
+    body.body = summary && content ? `${summary}\n\n${content}` : content || summary;
+  }
+  if (article.imageUrl !== undefined) body.coverImageUrl = article.imageUrl ?? null;
+
+  const response = await fetch(`${API_BASE_URL}/api/articles/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update article'));
+
+  const row = (await response.json()) as {
+    id: string;
+    title: string;
+    body: string;
+    coverImageUrl: string | null;
+    createdAt: string;
+  };
+  return mapApiArticle(row);
+}
+
+export async function deleteArticle(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/articles/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete article'));
+}
+
+// ── News: edit/delete (admin CRUD) ────────────────────────────────────────────
+
+export async function updateNewsPost(
+  id: string,
+  post: Partial<Pick<NewsPost, 'title' | 'excerpt' | 'content' | 'imageUrl'>>,
+): Promise<NewsPost> {
+  const body: Record<string, unknown> = {};
+  if (post.title !== undefined) body.title = post.title.trim();
+  if (post.excerpt !== undefined || post.content !== undefined) {
+    const excerpt = post.excerpt?.trim() ?? '';
+    const content = post.content?.trim() ?? '';
+    body.body = excerpt && content ? `${excerpt}\n\n${content}` : content || excerpt;
+  }
+  if (post.imageUrl !== undefined) body.coverImageUrl = post.imageUrl ?? null;
+
+  const response = await fetch(`${API_BASE_URL}/api/news/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update news'));
+
+  const row = (await response.json()) as {
+    id: string;
+    title: string;
+    body: string;
+    coverImageUrl: string | null;
+    createdAt: string;
+  };
+  return mapApiNews(row);
+}
+
+export async function deleteNewsPost(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/news/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete news'));
+}
+
+// ── Sellers: edit/deactivate/hard-delete (admin CRUD) ─────────────────────────
+
+export async function updateSeller(
+  id: string,
+  input: Partial<{ fullName: string; phoneNumber: string; countryId: string }>,
+): Promise<Distributor> {
+  const response = await fetch(`${API_BASE_URL}/api/sellers/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update distributor'));
+
+  const s = await response.json();
+  return {
+    id: s.id,
+    distributorId: s.distributorId,
+    fullName: s.fullName,
+    phone: s.phoneNumber,
+    role: s.role,
+    country: s.countryName || s.countryId,
+    referredBy: s.referredBy,
+    joinDate: s.createdAt,
+  };
+}
+
+export async function deactivateSeller(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/sellers/${encodeURIComponent(id)}/deactivate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to deactivate distributor'));
+}
+
+export async function hardDeleteSeller(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/sellers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete distributor'));
 }

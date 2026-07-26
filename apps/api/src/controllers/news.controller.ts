@@ -1,3 +1,4 @@
+//newsController
 import { Request, Response, NextFunction } from 'express';
 import * as newsService from '../services/news.service.js';
 import { CreateContentInput, UpdateContentInput } from '../schemas/content.schema.js';
