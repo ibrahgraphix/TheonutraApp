@@ -16,6 +16,7 @@ import {
 import { Avatar, Badge, ConfirmModal, ShopHeader, TeamMemberRow } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
 import {
+    activateSeller,
     deactivateSeller,
     getCurrencyForCountry,
     getDistributorById,
@@ -28,7 +29,7 @@ import { colors, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'DistributorDetail'>;
 type ScreenRoute = RouteProp<ManageStackParamList, 'DistributorDetail'>;
-type ConfirmAction = 'deactivate' | 'delete' | null;
+type ConfirmAction = 'activate' | 'deactivate' | 'delete' | null;
 
 function DownlineTree({
     members,
@@ -121,7 +122,11 @@ export function DistributorDetailScreen() {
         if (!confirmAction) return;
         setProcessing(true);
         try {
-            if (confirmAction === 'deactivate') {
+            if (confirmAction === 'activate') {
+                await activateSeller(distributorId);
+                setConfirmAction(null);
+                await load();
+            } else if (confirmAction === 'deactivate') {
                 await deactivateSeller(distributorId);
                 setConfirmAction(null);
                 await load();
@@ -132,13 +137,35 @@ export function DistributorDetailScreen() {
             }
         } catch (err) {
             Alert.alert(
-                confirmAction === 'deactivate' ? 'Cannot deactivate' : 'Cannot delete',
+                confirmAction === 'delete' ? 'Cannot delete' : 'Action failed',
                 err instanceof Error ? err.message : 'Action failed.',
             );
         } finally {
             setProcessing(false);
         }
     };
+
+    const confirmCopy = (() => {
+        if (confirmAction === 'activate') {
+            return {
+                title: 'Activate Distributor?',
+                message: `Reactivate ${profile?.fullName ?? 'this distributor'}? They will be able to log in again.`,
+                confirmLabel: 'Activate',
+            };
+        }
+        if (confirmAction === 'deactivate') {
+            return {
+                title: 'Deactivate Distributor?',
+                message: `Deactivate ${profile?.fullName ?? 'this distributor'}? They'll be blocked from logging in, but history stays intact.`,
+                confirmLabel: 'Deactivate',
+            };
+        }
+        return {
+            title: 'Delete Distributor?',
+            message: `Permanently delete ${profile?.fullName ?? 'this distributor'}? Only works if they have no downline, orders, or commissions.`,
+            confirmLabel: 'Delete Forever',
+        };
+    })();
 
     const directCount = downline.length;
     const totalCount = countAll(downline);
@@ -186,12 +213,21 @@ export function DistributorDetailScreen() {
                         >
                             <Text style={styles.actionText}>Reset Password</Text>
                         </Pressable>
-                        <Pressable
-                            onPress={() => setConfirmAction('deactivate')}
-                            style={styles.actionBtn}
-                        >
-                            <Text style={styles.deactivateText}>Deactivate</Text>
-                        </Pressable>
+                        {profile.isActive === false ? (
+                            <Pressable
+                                onPress={() => setConfirmAction('activate')}
+                                style={styles.actionBtn}
+                            >
+                                <Text style={styles.activateText}>Activate</Text>
+                            </Pressable>
+                        ) : (
+                            <Pressable
+                                onPress={() => setConfirmAction('deactivate')}
+                                style={styles.actionBtn}
+                            >
+                                <Text style={styles.deactivateText}>Deactivate</Text>
+                            </Pressable>
+                        )}
                         <Pressable
                             onPress={() => setConfirmAction('delete')}
                             style={styles.actionBtn}
@@ -222,17 +258,13 @@ export function DistributorDetailScreen() {
             )}
 
             <ConfirmModal
-                confirmLabel={confirmAction === 'delete' ? 'Delete Forever' : 'Deactivate'}
-                destructive
+                confirmLabel={confirmCopy.confirmLabel}
+                destructive={confirmAction !== 'activate'}
                 loading={processing}
-                message={
-                    confirmAction === 'delete'
-                        ? `Permanently delete ${profile?.fullName ?? 'this distributor'}? Only works if they have no downline, orders, or commissions.`
-                        : `Deactivate ${profile?.fullName ?? 'this distributor'}? They'll be blocked from logging in, but history stays intact.`
-                }
+                message={confirmCopy.message}
                 onCancel={() => setConfirmAction(null)}
                 onConfirm={handleConfirm}
-                title={confirmAction === 'delete' ? 'Delete Distributor?' : 'Deactivate Distributor?'}
+                title={confirmCopy.title}
                 visible={confirmAction !== null}
             />
         </View>
@@ -298,7 +330,12 @@ const styles = StyleSheet.create({
     },
     deactivateText: {
         ...typography.bodySmall,
-        color: colors.warning ?? '#f59e0b',
+        color: colors.error,
+        fontWeight: '600',
+    },
+    activateText: {
+        ...typography.bodySmall,
+        color: colors.success,
         fontWeight: '600',
     },
     deleteText: {

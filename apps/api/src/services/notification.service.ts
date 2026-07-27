@@ -56,6 +56,36 @@ export async function createNotification(
 }
 
 /**
+ * Creates the same 'system'-type notification for every staff member
+ * (admin + company_staff). Used for events relevant to the whole team
+ * rather than one specific distributor — new products, articles, news,
+ * training materials, events, and payment submissions.
+ */
+export async function broadcastToStaff(
+  title: string,
+  body: string,
+  data?: any,
+): Promise<void> {
+  const { data: staffProfiles, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('role', ['admin', 'company_staff']);
+
+  if (error) {
+    throw new ApiError(500, `Failed to fetch staff for broadcast: ${error.message}`);
+  }
+
+  for (const staff of staffProfiles ?? []) {
+    try {
+      await createNotification(staff.id, 'system', title, body, data);
+    } catch (err) {
+      console.error(`❌ Failed to notify staff ${staff.id}: ${err}`);
+      // Continue notifying the rest of staff even if one insert fails
+    }
+  }
+}
+
+/**
  * Gets paginated notifications for a distributor.
  * Can filter by read/unread status.
  */
@@ -67,7 +97,6 @@ export async function getMyNotifications(
 ): Promise<{ notifications: Notification[]; total: number; page: number; limit: number }> {
   const offset = (page - 1) * limit;
 
-  // Build query
   let query = supabase
     .from('notifications')
     .select('*', { count: 'exact' })
@@ -77,14 +106,12 @@ export async function getMyNotifications(
     query = query.eq('is_read', false);
   }
 
-  // Get total count
   const { count, error: countError } = await query;
 
   if (countError) {
     throw new ApiError(500, `Failed to count notifications: ${countError.message}`);
   }
 
-  // Get paginated notifications
   query = supabase
     .from('notifications')
     .select('*')
@@ -110,9 +137,6 @@ export async function getMyNotifications(
   };
 }
 
-/**
- * Marks a specific notification as read.
- */
 export async function markAsRead(
   distributorId: string,
   notificationId: string,
@@ -127,9 +151,6 @@ export async function markAsRead(
   }
 }
 
-/**
- * Marks all notifications as read for a distributor.
- */
 export async function markAllAsRead(distributorId: string): Promise<number> {
   const { data, error } = await supabase.rpc('mark_all_notifications_read', {
     p_distributor_id: distributorId,
@@ -142,9 +163,6 @@ export async function markAllAsRead(distributorId: string): Promise<number> {
   return data as number;
 }
 
-/**
- * Gets the unread notification count for a distributor.
- */
 export async function getUnreadCount(distributorId: string): Promise<number> {
   const { data, error } = await supabase.rpc('get_unread_notification_count', {
     p_distributor_id: distributorId,
@@ -157,11 +175,8 @@ export async function getUnreadCount(distributorId: string): Promise<number> {
   return data as number;
 }
 
-// Helper functions for creating specific notification types
+// ── Distributor-targeted notification helpers ──────────────────────────────
 
-/**
- * Creates a commission earned notification.
- */
 export async function notifyCommissionEarned(
   distributorId: string,
   amount: number,
@@ -176,9 +191,6 @@ export async function notifyCommissionEarned(
   );
 }
 
-/**
- * Creates a team bonus earned notification.
- */
 export async function notifyTeamBonusEarned(
   distributorId: string,
   amount: number,
@@ -193,9 +205,6 @@ export async function notifyTeamBonusEarned(
   );
 }
 
-/**
- * Creates a withdrawal status notification.
- */
 export async function notifyWithdrawalStatus(
   distributorId: string,
   status: 'approved' | 'rejected' | 'paid',
@@ -230,9 +239,6 @@ export async function notifyWithdrawalStatus(
   );
 }
 
-/**
- * Creates a KYC status notification.
- */
 export async function notifyKycStatus(
   distributorId: string,
   status: 'approved' | 'rejected' | 'resubmit_required',
@@ -265,9 +271,6 @@ export async function notifyKycStatus(
   );
 }
 
-/**
- * Creates a new referral notification for the upline.
- */
 export async function notifyNewReferral(
   uplineId: string,
   newDistributorName: string,
@@ -282,9 +285,6 @@ export async function notifyNewReferral(
   );
 }
 
-/**
- * Creates a manual bonus notification.
- */
 export async function notifyManualBonus(
   distributorId: string,
   amount: number,
@@ -296,5 +296,60 @@ export async function notifyManualBonus(
     'Manual Bonus Awarded',
     `You have been awarded a manual bonus of ${amount.toFixed(2)}. Reason: ${reason}`,
     { amount, reason },
+  );
+}
+
+// ── Staff broadcast helpers (new content / payments) ────────────────────────
+
+export async function notifyNewProduct(productId: string, productName: string): Promise<void> {
+  await broadcastToStaff(
+    'New Product Added',
+    `"${productName}" was added to the catalog.`,
+    { product_id: productId },
+  );
+}
+
+export async function notifyNewArticle(articleId: string, title: string): Promise<void> {
+  await broadcastToStaff(
+    'New Article Published',
+    `"${title}" was published.`,
+    { article_id: articleId },
+  );
+}
+
+export async function notifyNewNews(newsId: string, title: string): Promise<void> {
+  await broadcastToStaff(
+    'News Posted',
+    `"${title}" was posted.`,
+    { news_id: newsId },
+  );
+}
+
+export async function notifyNewTraining(materialId: string, title: string): Promise<void> {
+  await broadcastToStaff(
+    'Training Material Added',
+    `"${title}" was uploaded to the Training Academy.`,
+    { material_id: materialId },
+  );
+}
+
+export async function notifyNewEvent(eventId: string, title: string, eventType: string): Promise<void> {
+  await broadcastToStaff(
+    'New Event Created',
+    `"${title}" (${eventType.replace('_', ' ')}) was added to the events calendar.`,
+    { event_id: eventId },
+  );
+}
+
+export async function notifyPaymentSubmitted(
+  orderId: string,
+  distributorName: string,
+  amount: number,
+  method: string,
+): Promise<void> {
+  await broadcastToStaff(
+    'Payment Submitted',
+    `${distributorName} submitted a ${method.replace('_', ' ')} payment of ${amount.toFixed(2)} awaiting confirmation.`,
+    { order_id: orderId },
   );
 }

@@ -2,6 +2,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { AddArticleScreen } from '../screens/manage/AddArticleScreen';
 import { AddCountryScreen } from '../screens/manage/AddCountryScreen';
+import { AddEditEventScreen } from '../screens/manage/AddEditEventScreen';
 import { AddEditProductScreen } from '../screens/manage/AddEditProductScreen';
 import { AddSellerScreen } from '../screens/manage/AddSellerScreen';
 import { CountryListScreen } from '../screens/manage/CountryListScreen';
@@ -12,8 +13,11 @@ import { EditCountryScreen } from '../screens/manage/EditCountryScreen';
 import { EditNewsScreen } from '../screens/manage/EditNewsScreen';
 import { EditSellerScreen } from '../screens/manage/EditSellerScreen';
 import { ManageArticlesListScreen } from '../screens/manage/ManageArticlesListScreen';
+import { ManageEventsScreen } from '../screens/manage/ManageEventsScreen';
 import { ManageHomeScreen } from '../screens/manage/ManageHomeScreen';
 import { ManageNewsListScreen } from '../screens/manage/ManageNewsListScreen';
+import { ManageTrainingMaterialsScreen } from '../screens/manage/ManageTrainingMaterialsScreen';
+import { ManageTrainingScreen } from '../screens/manage/ManageTrainingScreen';
 import { PendingPaymentsScreen } from '../screens/manage/PendingPaymentsScreen';
 import { PostNewsScreen } from '../screens/manage/PostNewsScreen';
 import { ProductListScreen } from '../screens/manage/ProductListScreen';
@@ -43,6 +47,10 @@ export function ManageNavigator() {
       <Stack.Screen name="ManageArticles" component={ManageArticlesListScreen} />
       <Stack.Screen name="EditArticle" component={EditArticleScreen} />
       <Stack.Screen name="PendingPayments" component={PendingPaymentsScreen} />
+      <Stack.Screen name="ManageTraining" component={ManageTrainingScreen} />
+      <Stack.Screen name="ManageTrainingMaterials" component={ManageTrainingMaterialsScreen} />
+      <Stack.Screen name="ManageEvents" component={ManageEventsScreen} />
+      <Stack.Screen name="AddEditEvent" component={AddEditEventScreen} />
     </Stack.Navigator>
   );
 }

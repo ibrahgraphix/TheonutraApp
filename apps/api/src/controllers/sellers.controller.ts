@@ -136,3 +136,22 @@ export async function hardDeleteSellerHandler(
     next(err);
   }
 }
+
+export async function activateSellerHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    if (!id) {
+      throw new ApiError(400, 'Seller ID is required');
+    }
+
+    await sellersService.activateSeller(id);
+
+    res.status(200).json({ message: 'Seller activated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}

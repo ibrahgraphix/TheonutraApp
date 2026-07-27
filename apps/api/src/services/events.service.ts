@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import * as auditLogService from './auditLog.service.js';
+import * as notificationService from './notification.service.js';
 
 export type EventType = 'general' | 'health_education' | 'training' | 'product_launch';
 
@@ -10,8 +11,8 @@ export interface Event {
   description: string | null;
   event_type: EventType;
   location: string | null;
-  is_virtual: boolean;
-  virtual_link: string | null;
+  is_online: boolean;
+  meeting_note: string | null;
   start_at: string;
   end_at: string;
   banner_image_url: string | null;
@@ -26,8 +27,8 @@ export interface CreateEventInput {
   description?: string;
   event_type: EventType;
   location?: string;
-  is_virtual?: boolean;
-  virtual_link?: string;
+  is_online?: boolean;
+  meeting_note?: string;
   start_at: string;
   end_at: string;
   banner_image_url?: string;
@@ -38,8 +39,8 @@ export interface UpdateEventInput {
   description?: string;
   event_type?: EventType;
   location?: string;
-  is_virtual?: boolean;
-  virtual_link?: string;
+  is_online?: boolean;
+  meeting_note?: string;
   start_at?: string;
   end_at?: string;
   banner_image_url?: string;
@@ -59,8 +60,8 @@ export async function createEvent(
       description: data.description || null,
       event_type: data.event_type,
       location: data.location || null,
-      is_virtual: data.is_virtual || false,
-      virtual_link: data.virtual_link || null,
+      is_online: data.is_online || false,
+      meeting_note: data.meeting_note || null,
       start_at: data.start_at,
       end_at: data.end_at,
       banner_image_url: data.banner_image_url || null,
@@ -73,7 +74,6 @@ export async function createEvent(
     throw new ApiError(500, `Failed to create event: ${error?.message}`);
   }
 
-  // Log audit action
   await auditLogService.logAction(
     createdBy,
     'event_created',
@@ -87,6 +87,14 @@ export async function createEvent(
     },
   );
 
+  // Notify all staff and distributors of the new event — broadcast, since
+  // events are relevant to everyone, not one specific distributor.
+  try {
+    await notificationService.notifyNewEvent(event.id, data.title, data.event_type);
+  } catch (notifError) {
+    console.error(`❌ Failed to send new event notification: ${notifError}`);
+  }
+
   return event as Event;
 }
 
@@ -97,7 +105,6 @@ export async function updateEvent(
   eventId: string,
   data: UpdateEventInput,
 ): Promise<Event> {
-  // Fetch current event for audit log
   const { data: currentEvent, error: fetchError } = await supabase
     .from('events')
     .select('*')
@@ -115,8 +122,8 @@ export async function updateEvent(
       description: data.description,
       event_type: data.event_type,
       location: data.location,
-      is_virtual: data.is_virtual,
-      virtual_link: data.virtual_link,
+      is_online: data.is_online,
+      meeting_note: data.meeting_note,
       start_at: data.start_at,
       end_at: data.end_at,
       banner_image_url: data.banner_image_url,
@@ -129,7 +136,6 @@ export async function updateEvent(
     throw new ApiError(500, `Failed to update event: ${error?.message}`);
   }
 
-  // Log audit action
   await auditLogService.logAction(
     currentEvent.created_by,
     'event_updated',
@@ -158,7 +164,6 @@ export async function updateEvent(
  * Deactivates an event (soft delete via is_active flag) (staff only).
  */
 export async function deactivateEvent(eventId: string): Promise<void> {
-  // Fetch current event for audit log
   const { data: currentEvent, error: fetchError } = await supabase
     .from('events')
     .select('*')
@@ -178,7 +183,6 @@ export async function deactivateEvent(eventId: string): Promise<void> {
     throw new ApiError(500, `Failed to deactivate event: ${error.message}`);
   }
 
-  // Log audit action
   await auditLogService.logAction(
     currentEvent.created_by,
     'event_deactivated',
@@ -192,8 +196,40 @@ export async function deactivateEvent(eventId: string): Promise<void> {
 }
 
 /**
+ * Permanently deletes an event AND its Cloudinary banner image, if any.
+ * Staff only.
+ */
+export async function hardDeleteEvent(eventId: string): Promise<void> {
+  const { data: currentEvent, error: fetchError } = await supabase
+    .from('events')
+    .select('banner_image_url')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch event: ${fetchError.message}`);
+  }
+  if (!currentEvent) {
+    throw new ApiError(404, 'Event not found');
+  }
+
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) {
+    throw new ApiError(500, `Failed to delete event: ${error.message}`);
+  }
+
+  if (currentEvent.banner_image_url) {
+    const { deleteCloudinaryAsset } = await import('./uploads.service.js');
+    await deleteCloudinaryAsset(currentEvent.banner_image_url as string, 'image');
+  }
+}
+
+/**
  * Lists upcoming events with optional filters.
- * Filters: event_type, date range (start_from, start_to)
  */
 export async function listUpcomingEvents(
   filters?: {
@@ -241,6 +277,22 @@ export async function listPastEvents(): Promise<Event[]> {
 
   if (error) {
     throw new ApiError(500, `Failed to fetch past events: ${error.message}`);
+  }
+
+  return (data ?? []) as Event[];
+}
+
+/**
+ * Lists ALL events (active and inactive), for staff management. Staff only.
+ */
+export async function listAllEventsForAdmin(): Promise<Event[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('start_at', { ascending: false });
+
+  if (error) {
+    throw new ApiError(500, `Failed to fetch events: ${error.message}`);
   }
 
   return (data ?? []) as Event[];

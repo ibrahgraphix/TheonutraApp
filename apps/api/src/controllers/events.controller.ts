@@ -2,10 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import * as eventsService from '../services/events.service.js';
 import { ApiError } from '../middleware/error.middleware.js';
 
-/**
- * GET /api/events
- * Lists upcoming events with optional filters (type, date range).
- */
 export async function listUpcomingEventsHandler(
   req: Request,
   res: Response,
@@ -27,10 +23,6 @@ export async function listUpcomingEventsHandler(
   }
 }
 
-/**
- * GET /api/events/past
- * Lists past events.
- */
 export async function listPastEventsHandler(
   req: Request,
   res: Response,
@@ -45,9 +37,22 @@ export async function listPastEventsHandler(
 }
 
 /**
- * GET /api/events/:id
- * Gets a specific event by ID.
+ * GET /api/events/admin/list
+ * Lists ALL events including inactive ones. Staff only.
  */
+export async function listAllEventsForAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const events = await eventsService.listAllEventsForAdmin();
+    res.status(200).json(events);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getEventHandler(
   req: Request,
   res: Response,
@@ -65,10 +70,6 @@ export async function getEventHandler(
   }
 }
 
-/**
- * POST /api/events
- * Creates a new event. Staff only.
- */
 export async function createEventHandler(
   req: Request,
   res: Response,
@@ -86,10 +87,6 @@ export async function createEventHandler(
   }
 }
 
-/**
- * PUT /api/events/:id
- * Updates an existing event. Staff only.
- */
 export async function updateEventHandler(
   req: Request,
   res: Response,
@@ -111,10 +108,6 @@ export async function updateEventHandler(
   }
 }
 
-/**
- * DELETE /api/events/:id
- * Deactivates an event (soft delete). Staff only.
- */
 export async function deactivateEventHandler(
   req: Request,
   res: Response,
@@ -130,6 +123,30 @@ export async function deactivateEventHandler(
     }
     await eventsService.deactivateEvent(id);
     res.status(200).json({ message: 'Event deactivated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/events/:id/permanent
+ * Permanently deletes an event and its Cloudinary banner. Staff only.
+ */
+export async function hardDeleteEventHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      throw new ApiError(400, 'Event ID is required');
+    }
+    await eventsService.hardDeleteEvent(id);
+    res.status(200).json({ message: 'Event permanently deleted' });
   } catch (err) {
     next(err);
   }

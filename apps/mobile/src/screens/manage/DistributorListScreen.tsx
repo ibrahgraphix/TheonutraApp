@@ -14,12 +14,12 @@ import {
 
 import { Avatar, Badge, ConfirmModal, ListItem, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { deactivateSeller, hardDeleteSeller, searchDistributors } from '../../services/api';
+import { activateSeller, deactivateSeller, hardDeleteSeller, searchDistributors } from '../../services/api';
 import type { Distributor } from '../../types';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'DistributorList'>;
-type ConfirmAction = { type: 'deactivate' | 'delete'; distributor: Distributor } | null;
+type ConfirmAction = { type: 'activate' | 'deactivate' | 'delete'; distributor: Distributor } | null;
 
 export function DistributorListScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -45,7 +45,9 @@ export function DistributorListScreen() {
     if (!confirmAction) return;
     setProcessing(true);
     try {
-      if (confirmAction.type === 'deactivate') {
+      if (confirmAction.type === 'activate') {
+        await activateSeller(confirmAction.distributor.id);
+      } else if (confirmAction.type === 'deactivate') {
         await deactivateSeller(confirmAction.distributor.id);
       } else {
         await hardDeleteSeller(confirmAction.distributor.id);
@@ -54,13 +56,36 @@ export function DistributorListScreen() {
       await load(query);
     } catch (err) {
       Alert.alert(
-        confirmAction.type === 'deactivate' ? 'Cannot deactivate' : 'Cannot delete',
+        confirmAction.type === 'delete' ? 'Cannot delete' : 'Action failed',
         err instanceof Error ? err.message : 'Action failed.',
       );
     } finally {
       setProcessing(false);
     }
   };
+
+  const confirmCopy = (() => {
+    if (!confirmAction) return { title: '', message: '', confirmLabel: '' };
+    if (confirmAction.type === 'activate') {
+      return {
+        title: 'Activate Distributor?',
+        message: `Reactivate ${confirmAction.distributor.fullName}? They will be able to log in again.`,
+        confirmLabel: 'Activate',
+      };
+    }
+    if (confirmAction.type === 'deactivate') {
+      return {
+        title: 'Deactivate Distributor?',
+        message: `Deactivate ${confirmAction.distributor.fullName}? They'll be blocked from logging in, but history stays intact.`,
+        confirmLabel: 'Deactivate',
+      };
+    }
+    return {
+      title: 'Delete Distributor?',
+      message: `Permanently delete ${confirmAction.distributor.fullName}? Only works if they have no downline, orders, or commissions.`,
+      confirmLabel: 'Delete Forever',
+    };
+  })();
 
   return (
     <View style={styles.container}>
@@ -130,12 +155,21 @@ export function DistributorListScreen() {
                     >
                       <Text style={styles.actionText}>Reset</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() => setConfirmAction({ type: 'deactivate', distributor: item })}
-                      style={styles.actionBtn}
-                    >
-                      <Text style={styles.deactivateText}>Deactivate</Text>
-                    </Pressable>
+                    {item.isActive === false ? (
+                      <Pressable
+                        onPress={() => setConfirmAction({ type: 'activate', distributor: item })}
+                        style={styles.actionBtn}
+                      >
+                        <Text style={styles.activateText}>Activate</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => setConfirmAction({ type: 'deactivate', distributor: item })}
+                        style={styles.actionBtn}
+                      >
+                        <Text style={styles.deactivateText}>Deactivate</Text>
+                      </Pressable>
+                    )}
                     <Pressable
                       onPress={() => setConfirmAction({ type: 'delete', distributor: item })}
                       style={styles.actionBtn}
@@ -153,17 +187,13 @@ export function DistributorListScreen() {
       )}
 
       <ConfirmModal
-        confirmLabel={confirmAction?.type === 'delete' ? 'Delete Forever' : 'Deactivate'}
-        destructive
+        confirmLabel={confirmCopy.confirmLabel}
+        destructive={confirmAction?.type !== 'activate'}
         loading={processing}
-        message={
-          confirmAction?.type === 'delete'
-            ? `Permanently delete ${confirmAction.distributor.fullName}? This only works if they have no downline, orders, or commissions — otherwise deactivate instead.`
-            : `Deactivate ${confirmAction?.distributor.fullName}? They will be blocked from logging in, but their history stays intact.`
-        }
+        message={confirmCopy.message}
         onCancel={() => setConfirmAction(null)}
         onConfirm={handleConfirm}
-        title={confirmAction?.type === 'delete' ? 'Delete Distributor?' : 'Deactivate Distributor?'}
+        title={confirmCopy.title}
         visible={confirmAction !== null}
       />
     </View>
@@ -234,7 +264,11 @@ const styles = StyleSheet.create({
   },
   deactivateText: {
     ...typography.caption,
-    color: colors.warning ?? '#f59e0b',
+    color: colors.error,
+  },
+  activateText: {
+    ...typography.caption,
+    color: colors.success,
   },
   deleteText: {
     ...typography.caption,

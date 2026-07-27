@@ -83,3 +83,42 @@ export async function deactivateCountryHandler(
     next(err);
   }
 }
+
+/**
+ * PATCH /api/countries/:id/activate
+ * Reactivates a country. Staff only.
+ */
+export async function activateCountryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const id = req.params['id'];
+    if (!id) {
+      throw new ApiError(400, 'Country ID is required');
+    }
+
+    const country = await countriesService.activateCountry(id);
+    res.status(200).json(country);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/countries/admin/list
+ * Returns ALL countries including inactive ones. Staff only.
+ */
+export async function listCountriesForAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const countries = await countriesService.listCountriesForAdmin();
+    res.status(200).json(countries);
+  } catch (err) {
+    next(err);
+  }
+}

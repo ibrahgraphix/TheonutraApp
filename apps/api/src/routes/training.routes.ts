@@ -5,6 +5,7 @@ import {
   listCategoriesHandler,
   createCategoryHandler,
   updateCategoryHandler,
+  deleteCategoryHandler,
   listMaterialsByCategoryHandler,
   getMaterialHandler,
   createMaterialHandler,
@@ -15,17 +16,15 @@ import {
 
 const router = Router();
 
-// Public routes (no auth required for viewing)
 router.get('/categories', listCategoriesHandler);
 router.get('/categories/:id/materials', listMaterialsByCategoryHandler);
 router.get('/materials/:id', getMaterialHandler);
 
-// Authenticated routes
 router.use(authMiddleware);
 
-// Staff-only routes for creating/editing/deleting
 router.post('/categories', requireStaff, createCategoryHandler);
 router.put('/categories/:id', requireStaff, updateCategoryHandler);
+router.delete('/categories/:id', requireStaff, deleteCategoryHandler);
 router.post('/materials', requireStaff, createMaterialHandler);
 router.put('/materials/:id', requireStaff, updateMaterialHandler);
 router.delete('/materials/:id', requireStaff, deactivateMaterialHandler);

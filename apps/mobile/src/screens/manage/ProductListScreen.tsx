@@ -6,17 +6,18 @@ import { Image } from 'expo-image';
 
 import { Badge, ConfirmModal, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { deactivateProduct, listProductsForAdmin, type AdminProduct } from '../../services/api';
+import { activateProduct, deactivateProduct, listProductsForAdmin, type AdminProduct } from '../../services/api';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'ProductList'>;
+type ConfirmAction = { type: 'activate' | 'deactivate'; product: AdminProduct } | null;
 
 export function ProductListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmTarget, setConfirmTarget] = useState<AdminProduct | null>(null);
-  const [deactivating, setDeactivating] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [processing, setProcessing] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -31,17 +32,21 @@ export function ProductListScreen() {
     }, [load]),
   );
 
-  const handleDeactivate = async () => {
-    if (!confirmTarget) return;
-    setDeactivating(true);
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    setProcessing(true);
     try {
-      await deactivateProduct(confirmTarget.id);
-      setConfirmTarget(null);
+      if (confirmAction.type === 'activate') {
+        await activateProduct(confirmAction.product.id);
+      } else {
+        await deactivateProduct(confirmAction.product.id);
+      }
+      setConfirmAction(null);
       load();
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to deactivate product.');
+      Alert.alert('Error', err instanceof Error ? err.message : 'Action failed.');
     } finally {
-      setDeactivating(false);
+      setProcessing(false);
     }
   };
 
@@ -94,10 +99,20 @@ export function ProductListScreen() {
                   <Text style={styles.actionText}>Edit</Text>
                 </Pressable>
                 {item.isActive ? (
-                  <Pressable onPress={() => setConfirmTarget(item)} style={styles.actionBtn}>
+                  <Pressable
+                    onPress={() => setConfirmAction({ type: 'deactivate', product: item })}
+                    style={styles.actionBtn}
+                  >
                     <Text style={styles.deactivateText}>Deactivate</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <Pressable
+                    onPress={() => setConfirmAction({ type: 'activate', product: item })}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.activateText}>Activate</Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           )}
@@ -105,14 +120,18 @@ export function ProductListScreen() {
       )}
 
       <ConfirmModal
-        confirmLabel="Deactivate"
-        destructive
-        loading={deactivating}
-        message={`Deactivate "${confirmTarget?.name ?? ''}"? It will no longer appear in the shop, but existing orders and commissions referencing it stay intact.`}
-        onCancel={() => setConfirmTarget(null)}
-        onConfirm={handleDeactivate}
-        title="Deactivate Product?"
-        visible={confirmTarget !== null}
+        confirmLabel={confirmAction?.type === 'activate' ? 'Activate' : 'Deactivate'}
+        destructive={confirmAction?.type === 'deactivate'}
+        loading={processing}
+        message={
+          confirmAction?.type === 'activate'
+            ? `Reactivate "${confirmAction.product.name}"? It will reappear in the shop for its priced countries.`
+            : `Deactivate "${confirmAction?.product.name ?? ''}"? It will no longer appear in the shop, but existing orders and commissions referencing it stay intact.`
+        }
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={handleConfirm}
+        title={confirmAction?.type === 'activate' ? 'Activate Product?' : 'Deactivate Product?'}
+        visible={confirmAction !== null}
       />
     </View>
   );
@@ -141,6 +160,7 @@ const styles = StyleSheet.create({
   actionBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   actionText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
   deactivateText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+  activateText: { ...typography.caption, color: colors.success, fontWeight: '600' },
   headerAction: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   headerActionText: { ...typography.label, color: colors.textOnPrimary },
 });

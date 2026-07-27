@@ -1,3 +1,4 @@
+//orders.controller
 import { Request, Response, NextFunction } from 'express';
 import * as ordersService from '../services/orders.service.js';
 import { CreateOrderInput } from '../schemas/orders.schema.js';
@@ -67,6 +68,24 @@ export async function listMyOrdersHandler(
     }
 
     const orders = await ordersService.listMyOrders(req.user.id);
+    res.status(200).json(orders);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/orders/awaiting-payment
+ * Lists 'pending' orders with no payment record at all — i.e. "Pay Later"
+ * orders. Staff only.
+ */
+export async function listAwaitingPaymentOrdersHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const orders = await ordersService.listAwaitingPaymentOrders();
     res.status(200).json(orders);
   } catch (err) {
     next(err);

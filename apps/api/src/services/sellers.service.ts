@@ -440,7 +440,7 @@ async function sellerHasHistory(
   const { count: commissionCount, error: commissionError } = await supabase
     .from('commissions')
     .select('*', { count: 'exact', head: true })
-    .eq('recipient_id', sellerId);
+    .eq('beneficiary_id', sellerId);
   if (commissionError) {
     throw new ApiError(500, `Failed to check commissions: ${commissionError.message}`);
   }
@@ -462,15 +462,7 @@ async function sellerHasHistory(
   return { hasHistory: reasons.length > 0, reasons };
 }
 
-/**
- * Hard-deletes a seller. Only allowed when they have zero downline, orders,
- * commissions, or customer sales — otherwise rejects and directs the caller
- * to deactivateSeller instead. On success, also deletes their KYC document
- * images from Cloudinary and removes their Supabase Auth user so both
- * systems stay in sync.
- */
 export async function hardDeleteSeller(sellerId: string): Promise<void> {
-  // Ensure seller exists (throws 404 otherwise)
   await getSellerById(sellerId);
 
   const { hasHistory, reasons } = await sellerHasHistory(sellerId);
@@ -483,7 +475,6 @@ export async function hardDeleteSeller(sellerId: string): Promise<void> {
     );
   }
 
-  // Fetch any KYC submission(s) to clean up Cloudinary docs before deleting rows
   const { data: kycRows, error: kycFetchError } = await supabase
     .from('kyc_submissions')
     .select('document_front_url, document_back_url, selfie_url')
@@ -499,7 +490,6 @@ export async function hardDeleteSeller(sellerId: string): Promise<void> {
     await deleteCloudinaryAsset(row.selfie_url as string | null);
   }
 
-  // Delete KYC submission rows (no FK dependents beyond this)
   const { error: kycDeleteError } = await supabase
     .from('kyc_submissions')
     .delete()
@@ -509,7 +499,6 @@ export async function hardDeleteSeller(sellerId: string): Promise<void> {
     throw new ApiError(500, `Failed to delete KYC submissions: ${kycDeleteError.message}`);
   }
 
-  // Delete the profile row
   const { error: profileDeleteError } = await supabase
     .from('profiles')
     .delete()
@@ -519,13 +508,25 @@ export async function hardDeleteSeller(sellerId: string): Promise<void> {
     throw new ApiError(500, `Failed to delete profile: ${profileDeleteError.message}`);
   }
 
-  // Delete the Supabase Auth user to keep auth.users and profiles in sync.
-  // Best-effort: log but don't fail the whole operation if this errors,
-  // since the profile (the part visible to the app) is already gone.
   const { error: authDeleteError } = await supabase.auth.admin.deleteUser(sellerId);
   if (authDeleteError) {
     console.warn(
       `[Sellers] Failed to delete auth user ${sellerId}: ${authDeleteError.message}`,
     );
+  }
+}
+/**
+ * Reactivates a previously deactivated seller account.
+ */
+export async function activateSeller(sellerId: string): Promise<void> {
+  await getSellerById(sellerId);
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_active: true })
+    .eq('id', sellerId);
+
+  if (error) {
+    throw new ApiError(500, `Failed to activate seller: ${error.message}`);
   }
 }

@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -21,6 +21,7 @@ import { Button, Card, Input, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
 import {
   createProduct,
+  deleteUploadedAsset,
   getCountries,
   getProductForAdmin,
   updateProduct,
@@ -60,6 +61,15 @@ export function AddEditProductScreen() {
   const [imageUrl, setImageUrl] = useState<string | undefined>();
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Tracks the image URL that existed BEFORE this session's edits — never
+  // deleted by this screen (only replace/deactivate flows delete the
+  // "committed" image). `pendingUnsavedUrl` tracks an upload made during
+  // this session that hasn't been saved yet — if it gets replaced by a
+  // newer pick, or the screen is exited without saving, it gets cleaned up.
+  const originalImageUrlRef = useRef<string | undefined>(undefined);
+  const pendingUnsavedUrlRef = useRef<string | undefined>(undefined);
+  const savedRef = useRef(false);
+
   const { control, handleSubmit, reset } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { name: '', description: '' },
@@ -76,6 +86,7 @@ export function AddEditProductScreen() {
           const product = await getProductForAdmin(productId);
           reset({ name: product.name, description: product.description ?? '' });
           setImageUrl(product.imageUrl ?? undefined);
+          originalImageUrlRef.current = product.imageUrl ?? undefined;
 
           const priceByCountry = new Map(product.pricing.map((p) => [p.countryId, p]));
           setPricing(
@@ -117,6 +128,16 @@ export function AddEditProductScreen() {
     void load();
   }, [isEdit, productId, reset]);
 
+  // Cleanup: if the screen unmounts (back button, nav away) without saving,
+  // and there's an unsaved upload from this session, delete it from Cloudinary.
+  useEffect(() => {
+    return () => {
+      if (!savedRef.current && pendingUnsavedUrlRef.current) {
+        void deleteUploadedAsset(pendingUnsavedUrlRef.current, 'image');
+      }
+    };
+  }, []);
+
   const updatePrice = (
     countryId: string,
     field: 'price' | 'distributorPrice' | 'available',
@@ -156,6 +177,17 @@ export function AddEditProductScreen() {
     setUploading(true);
     try {
       const uploadedUrl = await uploadProductImage(uri);
+
+      // If a previous unsaved upload exists from this session (i.e. the
+      // admin picked an image, then picked a different one before saving),
+      // delete the abandoned one now — it will never get attached to a
+      // saved record otherwise.
+      const previousUnsaved = pendingUnsavedUrlRef.current;
+      if (previousUnsaved && previousUnsaved !== originalImageUrlRef.current) {
+        void deleteUploadedAsset(previousUnsaved, 'image');
+      }
+
+      pendingUnsavedUrlRef.current = uploadedUrl;
       setImageUrl(uploadedUrl);
     } catch (err) {
       setLocalImageUri(null);
@@ -202,6 +234,9 @@ export function AddEditProductScreen() {
         });
         Alert.alert('Saved', 'Product saved and is available in the shop for priced countries.');
       }
+      // Mark saved so the unmount cleanup doesn't delete the image we just
+      // committed to the DB.
+      savedRef.current = true;
       navigation.goBack();
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not save product.');

@@ -118,3 +118,31 @@ export async function rejectPaymentHandler(
     next(err);
   }
 }
+
+/**
+ * PATCH /api/payments/awaiting/:orderId/mark-paid
+ * Manually marks a "Pay Later" order as paid. Staff only.
+ */
+export async function markOrderPaidManuallyHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const orderId = req.params['orderId'];
+    if (!orderId) {
+      throw new ApiError(400, 'Order ID is required');
+    }
+
+    const { method, note } = req.body as { method?: 'cash' | 'bank_transfer' | 'mobile_money'; note?: string };
+
+    await paymentsService.markOrderPaidManually(orderId, req.user.id, method, note);
+    res.status(200).json({ message: 'Order marked as paid' });
+  } catch (err) {
+    next(err);
+  }
+}

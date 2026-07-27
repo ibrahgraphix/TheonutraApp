@@ -5,12 +5,13 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 
 import { Badge, ConfirmModal, ListItem, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { deactivateCountry, getCountries } from '../../services/api';
+import { activateCountry, deactivateCountry, getCountries, listCountriesForAdmin } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import type { Country } from '../../types';
 import { colors, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'CountryList'>;
+type ConfirmAction = { type: 'activate' | 'deactivate'; country: Country } | null;
 
 export function CountryListScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -21,21 +22,21 @@ export function CountryListScreen() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [confirmTarget, setConfirmTarget] = useState<Country | null>(null);
-  const [deactivating, setDeactivating] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [processing, setProcessing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getCountries();
+      const data = isStaff ? await listCountriesForAdmin() : await getCountries();
       setCountries(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load countries');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isStaff]);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,20 +44,24 @@ export function CountryListScreen() {
     }, [load]),
   );
 
-  const handleDeactivate = async () => {
-    if (!confirmTarget) return;
-    setDeactivating(true);
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    setProcessing(true);
     try {
-      await deactivateCountry(confirmTarget.id);
-      setConfirmTarget(null);
+      if (confirmAction.type === 'activate') {
+        await activateCountry(confirmAction.country.id);
+      } else {
+        await deactivateCountry(confirmAction.country.id);
+      }
+      setConfirmAction(null);
       await load();
     } catch (err) {
       Alert.alert(
-        'Cannot deactivate',
-        err instanceof Error ? err.message : 'Failed to deactivate country.',
+        confirmAction.type === 'activate' ? 'Cannot activate' : 'Cannot deactivate',
+        err instanceof Error ? err.message : 'Action failed.',
       );
     } finally {
-      setDeactivating(false);
+      setProcessing(false);
     }
   };
 
@@ -103,18 +108,28 @@ export function CountryListScreen() {
               right={
                 isStaff ? (
                   <View style={styles.itemActions}>
+                    {!item.isActive ? <Badge label="Inactive" variant="error" /> : null}
                     <Pressable
                       onPress={() => navigation.navigate('EditCountry', { countryId: item.id })}
                       style={styles.actionBtn}
                     >
                       <Text style={styles.actionText}>Edit</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() => setConfirmTarget(item)}
-                      style={styles.actionBtn}
-                    >
-                      <Text style={styles.deactivateText}>Deactivate</Text>
-                    </Pressable>
+                    {item.isActive ? (
+                      <Pressable
+                        onPress={() => setConfirmAction({ type: 'deactivate', country: item })}
+                        style={styles.actionBtn}
+                      >
+                        <Text style={styles.deactivateText}>Deactivate</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => setConfirmAction({ type: 'activate', country: item })}
+                        style={styles.actionBtn}
+                      >
+                        <Text style={styles.activateText}>Activate</Text>
+                      </Pressable>
+                    )}
                   </View>
                 ) : undefined
               }
@@ -126,14 +141,18 @@ export function CountryListScreen() {
       )}
 
       <ConfirmModal
-        confirmLabel="Deactivate"
-        destructive
-        loading={deactivating}
-        message={`This will deactivate ${confirmTarget?.name ?? 'this country'}. It will be blocked if any distributor or product still references it.`}
-        onCancel={() => setConfirmTarget(null)}
-        onConfirm={handleDeactivate}
-        title="Deactivate Country?"
-        visible={confirmTarget !== null}
+        confirmLabel={confirmAction?.type === 'activate' ? 'Activate' : 'Deactivate'}
+        destructive={confirmAction?.type === 'deactivate'}
+        loading={processing}
+        message={
+          confirmAction?.type === 'activate'
+            ? `Reactivate ${confirmAction.country.name}? It will become available again for distributors and products.`
+            : `Deactivate ${confirmAction?.country.name}? Blocked if any distributor or product still references it.`
+        }
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={handleConfirm}
+        title={confirmAction?.type === 'activate' ? 'Activate Country?' : 'Deactivate Country?'}
+        visible={confirmAction !== null}
       />
     </View>
   );
@@ -175,6 +194,11 @@ const styles = StyleSheet.create({
   deactivateText: {
     ...typography.caption,
     color: colors.error,
+    fontWeight: '600',
+  },
+  activateText: {
+    ...typography.caption,
+    color: colors.success,
     fontWeight: '600',
   },
 });

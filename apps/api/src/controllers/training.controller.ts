@@ -201,3 +201,27 @@ export async function hardDeleteMaterialHandler(
     next(err);
   }
 }
+
+/**
+ * DELETE /api/training/categories/:id
+ * Permanently deletes a category. Blocked if it still has materials. Staff only.
+ */
+export async function deleteCategoryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+    const { id } = req.params;
+    if (!id || Array.isArray(id)) {
+      throw new ApiError(400, 'Category ID is required');
+    }
+    await trainingService.deleteCategory(id as string);
+    res.status(200).json({ message: 'Training category deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+}

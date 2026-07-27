@@ -1,4 +1,3 @@
-//HomeScreen
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -29,10 +28,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { DashboardStats } from '../../types';
 import { colors, spacing, typography } from '../../theme';
 
-type HomeNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, 'Home'>,
-  NativeStackNavigationProp<RootStackParamList>
->;
+type HomeNavigationProp = CompositeNavigationProp<BottomTabNavigationProp<MainTabParamList, 'Home'>, NativeStackNavigationProp<RootStackParamList>>;
 
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat('en-US', {
@@ -45,9 +41,6 @@ function formatCurrency(amount: number, currency: string) {
 export function HomeScreen() {
   const navigation = useNavigation<HomeNavigationProp>();
   const distributor = useAuthStore((state) => state.distributor);
-  // Same staff check used everywhere else (requireStaff on the backend,
-  // MainNavigator's Manage tab, CountryListScreen's + Add button) —
-  // admin and company_staff both count as staff.
   const isStaff =
     distributor?.role === 'admin' || distributor?.role === 'company_staff';
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -111,73 +104,126 @@ export function HomeScreen() {
           </View>
         </Card>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>This Month</Text>
-          {stats ? (
-            <Badge label={stats.period} variant="neutral" />
-          ) : null}
-        </View>
+        {!isStaff ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>This Month</Text>
+              {stats ? <Badge label={stats.period} variant="neutral" /> : null}
+            </View>
 
-        {loading ? (
-          <ActivityIndicator color={colors.primary} size="large" />
-        ) : stats ? (
-          <View style={styles.statsRow}>
-            <StatCard
-              label="Personal Sales"
-              value={formatCurrency(stats.personalSales, stats.currency)}
-            />
-            <StatCard
-              accent="secondary"
-              label="Team Sales"
-              value={formatCurrency(stats.teamSales, stats.currency)}
-            />
-            <StatCard
-              accent="secondary"
-              label="Bonus Earned"
-              value={formatCurrency(stats.bonusEarned, stats.currency)}
-            />
-          </View>
+            {loading ? (
+              <ActivityIndicator color={colors.primary} size="large" />
+            ) : stats ? (
+              <View style={styles.statsRow}>
+                <StatCard
+                  label="Personal Sales"
+                  value={formatCurrency(stats.personalSales, stats.currency)}
+                />
+                <StatCard
+                  accent="secondary"
+                  label="Team Sales"
+                  value={formatCurrency(stats.teamSales, stats.currency)}
+                />
+                <StatCard
+                  accent="secondary"
+                  label="Bonus Earned"
+                  value={formatCurrency(stats.bonusEarned, stats.currency)}
+                />
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.shortcutsGrid}>
-          <ShortcutButton
-            icon="🛒"
-            label="Shop"
-            onPress={() => navigation.navigate('Shop')}
-          />
-          {isStaff ? (
-            <ShortcutButton
-              icon="👥"
-              label="Distributors"
-              onPress={() => navigation.navigate('Manage', { screen: 'DistributorList' })}
-            />
-          ) : (
-            <ShortcutButton
-              icon="👥"
-              label="Team"
-              onPress={() => navigation.navigate('Team')}
-            />
-          )}
-        </View>
-        <View style={styles.shortcutsGrid}>
-          <ShortcutButton
-            icon="📰"
-            label="News"
-            onPress={() => navigation.navigate('News')}
-          />
-          <ShortcutButton
-            icon="📚"
-            label="Articles"
-            onPress={() => navigation.navigate('Articles')}
-          />
-        </View>
+
+        {isStaff ? (
+          <>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="📦"
+                label="Products"
+                onPress={() => navigation.navigate('Manage', { screen: 'ProductList' })}
+              />
+              <ShortcutButton
+                icon="👥"
+                label="Distributors"
+                onPress={() => navigation.navigate('Manage', { screen: 'DistributorList' })}
+              />
+            </View>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="🌍"
+                label="Countries"
+                onPress={() => navigation.navigate('Manage', { screen: 'CountryList' })}
+              />
+              <ShortcutButton
+                icon="💳"
+                label="Payments"
+                onPress={() => navigation.navigate('Manage', { screen: 'PendingPayments' })}
+              />
+            </View>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="📰"
+                label="News"
+                onPress={() => navigation.navigate('Manage', { screen: 'ManageNews' })}
+              />
+              <ShortcutButton
+                icon="📚"
+                label="Articles"
+                onPress={() => navigation.navigate('Manage', { screen: 'ManageArticles' })}
+              />
+            </View>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="🎓"
+                label="Training"
+                onPress={() => navigation.navigate('Manage', { screen: 'ManageTraining' })}
+              />
+              <ShortcutButton
+                icon="📅"
+                label="Events"
+                onPress={() => navigation.navigate('Manage', { screen: 'ManageEvents' })}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="🛒"
+                label="Shop"
+                onPress={() => navigation.navigate('Shop')}
+              />
+              <ShortcutButton
+                icon="👥"
+                label="Team"
+                onPress={() => navigation.navigate('Team')}
+              />
+            </View>
+            <View style={styles.shortcutsGrid}>
+              <ShortcutButton
+                icon="📰"
+                label="News"
+                onPress={() => navigation.navigate('News')}
+              />
+              <ShortcutButton
+                icon="📚"
+                label="Articles"
+                onPress={() => navigation.navigate('Articles')}
+              />
+            </View>
+          </>
+        )}
 
         <Card style={styles.tipCard}>
-          <Text style={styles.tipTitle}>Grow Your Network</Text>
+          <Text style={styles.tipTitle}>
+            {isStaff ? 'Admin Dashboard' : 'Grow Your Network'}
+          </Text>
           <Text style={styles.tipBody}>
-            Share wellness products and recruit new distributors to increase your team
-            sales and monthly bonuses.
+            {isStaff
+              ? 'Manage products, distributors, countries, payments, and published content from here.'
+              : 'Share wellness products and recruit new distributors to increase your team sales and monthly bonuses.'}
           </Text>
         </Card>
       </ScrollView>

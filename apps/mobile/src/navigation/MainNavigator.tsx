@@ -1,4 +1,3 @@
-//MainNavigator
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
@@ -58,6 +57,9 @@ export function MainNavigator() {
   // makes sense for a regular seller looking at their own downline.
   const showManage = isStaff;
   const showTeam = !isStaff;
+  // Staff can't buy from themselves, so the Shop tab is hidden entirely for
+  // admin/company_staff — everything shop-related is under Manage → Products.
+  const showShop = !isStaff;
 
   const bottomInset = Math.max(insets.bottom, spacing.sm);
 
@@ -89,7 +91,7 @@ export function MainNavigator() {
 
   return (
     <Tab.Navigator
-      key={[showTeam, showManage].join('-')}
+      key={[showTeam, showManage, showShop].join('-')}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.tabActive,
@@ -113,7 +115,7 @@ export function MainNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Shop" component={ShopNavigator} />
+      {showShop ? <Tab.Screen name="Shop" component={ShopNavigator} /> : null}
       {showTeam ? <Tab.Screen name="Team" component={TeamNavigator} /> : null}
       <Tab.Screen name="Account" component={AccountNavigator} />
       {showManage ? (

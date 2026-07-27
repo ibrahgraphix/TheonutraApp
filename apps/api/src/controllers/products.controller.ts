@@ -158,3 +158,25 @@ export async function deactivateProductHandler(
     next(err);
   }
 }
+
+/**
+ * PATCH /api/products/:id/activate
+ * Reactivates a product. Staff only.
+ */
+export async function activateProductHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const id = req.params['id'];
+    if (!id) {
+      throw new ApiError(400, 'Product ID is required');
+    }
+
+    await productsService.activateProduct(id);
+    res.status(200).json({ message: 'Product activated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}

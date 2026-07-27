@@ -174,3 +174,42 @@ function mapCountry(row: Record<string, unknown>): Country {
     createdAt: row['created_at'] as string,
   };
 }
+
+/**
+ * Reactivates a previously deactivated country (is_active = true).
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function activateCountry(id: string): Promise<Country> {
+  const { data, error } = await supabase
+    .from('countries')
+    .update({ is_active: true })
+    .eq('id', id)
+    .select('id, name, iso_code, currency_code, is_active, created_at')
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw new ApiError(404, 'Country not found');
+    }
+    throw new ApiError(500, `Failed to activate country: ${error.message}`);
+  }
+
+  return mapCountry(data);
+}
+
+/**
+ * Returns ALL countries (active and inactive), for staff management screens.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function listCountriesForAdmin(): Promise<Country[]> {
+  const { data, error } = await supabase
+    .from('countries')
+    .select('id, name, iso_code, currency_code, is_active, created_at')
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw new ApiError(500, `Failed to list countries: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapCountry);
+}

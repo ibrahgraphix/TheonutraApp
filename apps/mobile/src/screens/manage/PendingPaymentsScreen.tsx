@@ -7,17 +7,26 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
 import { Badge, Button, Card, ShopHeader } from '../../components';
 import type { ManageStackParamList } from '../../navigation/manageTypes';
-import { confirmPayment, getDistributorName, getPendingPayments } from '../../services/api';
+import {
+  confirmPayment,
+  getAwaitingPaymentOrders,
+  getDistributorName,
+  getPendingPayments,
+  markOrderPaidManually,
+  type AwaitingPaymentOrder,
+} from '../../services/api';
 import type { Payment } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { colors, spacing, typography } from '../../theme';
 
 type NavigationProp = NativeStackNavigationProp<ManageStackParamList, 'PendingPayments'>;
+type Tab = 'unconfirmed' | 'awaiting';
 
 interface PaymentRow extends Payment {
   distributorName?: string;
@@ -25,12 +34,14 @@ interface PaymentRow extends Payment {
 
 export function PendingPaymentsScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('unconfirmed');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [awaitingOrders, setAwaitingOrders] = useState<AwaitingPaymentOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const loadUnconfirmed = useCallback(async () => {
     const data = await getPendingPayments();
     const enriched = await Promise.all(
       data.map(async (p) => ({
@@ -39,12 +50,25 @@ export function PendingPaymentsScreen() {
       })),
     );
     setPayments(enriched);
-    setLoading(false);
   }, []);
 
+  const loadAwaiting = useCallback(async () => {
+    const data = await getAwaitingPaymentOrders();
+    setAwaitingOrders(data);
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadUnconfirmed(), loadAwaiting()]);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadUnconfirmed, loadAwaiting]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    void loadAll();
+  }, [loadAll]);
 
   const handleConfirm = (payment: Payment) => {
     Alert.alert(
@@ -55,14 +79,38 @@ export function PendingPaymentsScreen() {
         {
           text: 'Confirm',
           onPress: async () => {
-            setConfirmingId(payment.id);
+            setProcessingId(payment.id);
             try {
               await confirmPayment(payment.id);
-              await load();
+              await loadUnconfirmed();
             } catch {
               Alert.alert('Error', 'Could not confirm payment.');
             } finally {
-              setConfirmingId(null);
+              setProcessingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleMarkPaid = (order: AwaitingPaymentOrder) => {
+    Alert.alert(
+      'Mark as Paid',
+      `Mark ${formatCurrency(order.totalAmount, order.currencyCode)} from ${order.buyerName ?? 'this distributor'} as paid?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Paid',
+          onPress: async () => {
+            setProcessingId(order.id);
+            try {
+              await markOrderPaidManually(order.id, 'cash');
+              await loadAwaiting();
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not mark order as paid.');
+            } finally {
+              setProcessingId(null);
             }
           },
         },
@@ -72,40 +120,90 @@ export function PendingPaymentsScreen() {
 
   return (
     <View style={styles.container}>
-      <ShopHeader onBack={() => navigation.goBack()} title="Pending Payments" />
+      <ShopHeader onBack={() => navigation.goBack()} title="Payments" />
+
+      <View style={styles.tabs}>
+        <TouchableOpacity
+          onPress={() => setTab('unconfirmed')}
+          style={[styles.tab, tab === 'unconfirmed' && styles.tabActive]}
+        >
+          <Text style={[styles.tabText, tab === 'unconfirmed' && styles.tabTextActive]}>
+            Unconfirmed ({payments.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setTab('awaiting')}
+          style={[styles.tab, tab === 'awaiting' && styles.tabActive]}
+        >
+          <Text style={[styles.tabText, tab === 'awaiting' && styles.tabTextActive]}>
+            Awaiting Payment ({awaitingOrders.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={styles.loader} />
-      ) : payments.length === 0 ? (
-        <Text style={styles.empty}>No pending payments.</Text>
+      ) : tab === 'unconfirmed' ? (
+        payments.length === 0 ? (
+          <Text style={styles.empty}>No unconfirmed payments.</Text>
+        ) : (
+          <FlatList
+            contentContainerStyle={styles.list}
+            data={payments}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <Card style={styles.card}>
+                <View style={styles.row}>
+                  <Text style={styles.name}>{item.distributorName}</Text>
+                  <Badge
+                    label={item.method === 'bank_transfer' ? 'Bank' : 'Mobile'}
+                    variant="secondary"
+                  />
+                </View>
+                <Text style={styles.amount}>
+                  {formatCurrency(item.amount, item.currency)}
+                </Text>
+                <Text style={styles.meta}>
+                  {item.method === 'bank_transfer'
+                    ? `Ref: ${item.reference}`
+                    : `${item.provider} · ${item.phone}`}
+                </Text>
+                <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+                <Button
+                  loading={processingId === item.id}
+                  onPress={() => handleConfirm(item)}
+                  style={styles.confirmBtn}
+                  title="Confirm Payment"
+                />
+              </Card>
+            )}
+          />
+        )
+      ) : awaitingOrders.length === 0 ? (
+        <Text style={styles.empty}>No orders awaiting payment.</Text>
       ) : (
         <FlatList
           contentContainerStyle={styles.list}
-          data={payments}
+          data={awaitingOrders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <Card style={styles.card}>
               <View style={styles.row}>
-                <Text style={styles.name}>{item.distributorName}</Text>
-                <Badge
-                  label={item.method === 'bank_transfer' ? 'Bank' : 'Mobile'}
-                  variant="secondary"
-                />
+                <Text style={styles.name}>{item.buyerName}</Text>
+                <Badge label="Pay Later" variant="secondary" />
               </View>
               <Text style={styles.amount}>
-                {formatCurrency(item.amount, item.currency)}
+                {formatCurrency(item.totalAmount, item.currencyCode)}
               </Text>
               <Text style={styles.meta}>
-                {item.method === 'bank_transfer'
-                  ? `Ref: ${item.reference}`
-                  : `${item.provider} · ${item.phone}`}
+                {item.items?.length ?? 0} item{item.items?.length !== 1 ? 's' : ''}
               </Text>
               <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
               <Button
-                loading={confirmingId === item.id}
-                onPress={() => handleConfirm(item)}
+                loading={processingId === item.id}
+                onPress={() => handleMarkPaid(item)}
                 style={styles.confirmBtn}
-                title="Confirm Payment"
+                title="Mark as Paid"
               />
             </Card>
           )}
@@ -117,6 +215,11 @@ export function PendingPaymentsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border },
+  tab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  tabText: { ...typography.bodySmall, color: colors.textSecondary },
+  tabTextActive: { color: colors.primary, fontWeight: '700' },
   loader: { marginTop: spacing.xxxl },
   empty: {
     ...typography.body,

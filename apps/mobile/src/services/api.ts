@@ -157,6 +157,7 @@ export async function getDistributorById(id: string): Promise<Distributor | null
     country: s.countryName || s.countryId,
     referredBy: s.referredBy,
     joinDate: s.createdAt,
+    isActive: s.isActive,
   };
 }
 
@@ -945,6 +946,7 @@ export async function getAllDistributors(): Promise<Distributor[]> {
     country: s.countryName || s.countryId,
     referredBy: s.referredBy,
     joinDate: s.createdAt,
+    isActive: s.isActive,
   }));
 }
 
@@ -974,6 +976,7 @@ export async function searchDistributors(query: string): Promise<Distributor[]> 
     country: s.countryName || s.countryId,
     referredBy: s.referredBy,
     joinDate: s.createdAt,
+    isActive: s.isActive,
   }));
 }
 
@@ -2131,4 +2134,150 @@ export async function hardDeleteSeller(id: string): Promise<void> {
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete distributor'));
+}
+
+export async function activateCountry(id: string): Promise<Country> {
+  const response = await fetch(`${API_BASE_URL}/api/countries/${encodeURIComponent(id)}/activate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to activate country'));
+  return response.json();
+}
+
+export async function activateSeller(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/sellers/${encodeURIComponent(id)}/activate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to activate distributor'));
+}
+
+export async function activateProduct(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/products/${encodeURIComponent(id)}/activate`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to activate product'));
+}
+
+export async function deleteUploadedAsset(
+  url: string,
+  resourceType: 'image' | 'raw' = 'image',
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/uploads/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify({ url, resourceType }),
+    });
+    // Best-effort cleanup — don't throw on failure, it shouldn't block the
+    // admin's actual save/navigation action.
+  } catch {
+    // silently ignore
+  }
+}
+
+// ── Pay Later ──────────────────────────────────────────────────────────────
+
+export async function submitPayLaterOrder(
+  country: string,
+  items: OrderItem[],
+): Promise<Order> {
+  const response = await fetch(`${API_BASE_URL}/api/orders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify({
+      countryId: country,
+      items: items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+      })),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(parseApiError(await response.text(), 'Failed to submit order'));
+  }
+
+  return response.json();
+}
+
+export interface AwaitingPaymentOrder extends Order {
+  buyerName?: string;
+  distributorId?: string;
+}
+
+export async function getAwaitingPaymentOrders(): Promise<AwaitingPaymentOrder[]> {
+  const response = await fetch(`${API_BASE_URL}/api/orders/awaiting-payment`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch awaiting-payment orders'));
+  return response.json();
+}
+
+export async function markOrderPaidManually(
+  orderId: string,
+  method: 'cash' | 'bank_transfer' | 'mobile_money' = 'cash',
+  note?: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/payments/awaiting/${encodeURIComponent(orderId)}/mark-paid`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify({ method, note }),
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark order as paid'));
+}
+
+export async function listCountriesForAdmin(): Promise<Country[]> {
+  const response = await fetch(`${API_BASE_URL}/api/countries/admin/list`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to list countries'));
+  const rows = (await response.json()) as Array<{
+    id: string; name: string; isoCode: string; currencyCode: string; isActive: boolean; createdAt: string;
+  }>;
+  return rows.map((c) => ({
+    id: c.id, name: c.name, isoCode: c.isoCode, currencyCode: c.currencyCode,
+    isActive: c.isActive, createdAt: c.createdAt,
+  }));
+}
+
+export async function deleteTrainingCategory(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/training/categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete category'));
+}
+
+export async function hardDeleteTrainingMaterial(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/training/materials/${encodeURIComponent(id)}/permanent`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete material'));
+}
+
+export async function hardDeleteEvent(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/events/${encodeURIComponent(id)}/permanent`, {
+    method: 'DELETE',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete event'));
 }

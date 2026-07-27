@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 
 export interface TrainingCategory {
   id: string;
@@ -233,6 +234,12 @@ export async function createMaterial(
     throw new ApiError(500, `Failed to create training material: ${error.message}`);
   }
 
+  try {
+    await notificationService.notifyNewTraining(data.id, input.title);
+  } catch (notifError) {
+    console.error(`❌ Failed to send new training notification: ${notifError}`);
+  }
+
   const material = data as any;
   return {
     ...material,
@@ -347,4 +354,35 @@ export async function hardDeleteMaterial(materialId: string): Promise<void> {
   }
 
   await deleteCloudinaryAsset(data.pdf_url as string | null, 'raw');
+}
+
+/**
+ * Permanently deletes a training category. Blocked if it still has any
+ * materials (active or inactive) — delete/reassign those first.
+ * Staff-only.
+ */
+export async function deleteCategory(categoryId: string): Promise<void> {
+  const { count, error: countError } = await supabase
+    .from('training_materials')
+    .select('*', { count: 'exact', head: true })
+    .eq('category_id', categoryId);
+
+  if (countError) {
+    throw new ApiError(500, `Failed to check category materials: ${countError.message}`);
+  }
+  if ((count ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      `Cannot delete category: it still has ${count} material(s). Delete those first.`,
+    );
+  }
+
+  const { error } = await supabase
+    .from('training_categories')
+    .delete()
+    .eq('id', categoryId);
+
+  if (error) {
+    throw new ApiError(404, 'Training category not found');
+  }
 }

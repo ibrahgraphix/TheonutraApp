@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { CreateProductInput, UpdateProductInput } from '../schemas/catalog.schema.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 
 // ── Shared shapes ─────────────────────────────────────────────────────────────
 
@@ -155,6 +156,13 @@ export async function createProduct(
     // Rollback: delete the orphaned product
     await supabase.from('products').delete().eq('id', product.id);
     throw new ApiError(500, `Failed to insert product prices: ${priceError.message}`);
+  }
+
+  // Notify staff of the new product
+  try {
+    await notificationService.notifyNewProduct(product.id, product.name);
+  } catch (notifError) {
+    console.error(`❌ Failed to send new product notification: ${notifError}`);
   }
 
   return mapProduct(product);
@@ -420,4 +428,32 @@ function mapProductWithPrice(row: Record<string, unknown>): Product {
   }
 
   return base;
+}
+
+/**
+ * Reactivates a previously deactivated product.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function activateProduct(id: string): Promise<void> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('products')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new ApiError(500, `Failed to fetch product: ${fetchError.message}`);
+  }
+  if (!existing) {
+    throw new ApiError(404, 'Product not found');
+  }
+
+  const { error } = await supabase
+    .from('products')
+    .update({ is_active: true })
+    .eq('id', id);
+
+  if (error) {
+    throw new ApiError(500, `Failed to activate product: ${error.message}`);
+  }
 }

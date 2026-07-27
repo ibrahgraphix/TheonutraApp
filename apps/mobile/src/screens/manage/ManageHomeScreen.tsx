@@ -49,6 +49,18 @@ export function ManageHomeScreen() {
             onPress={() => navigation.navigate('ManageArticles')}
           />
           <ShortcutButton
+            icon="🎓"
+            label="Training"
+            onPress={() => navigation.navigate('ManageTraining')}
+          />
+        </View>
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="📅"
+            label="Events"
+            onPress={() => navigation.navigate('ManageEvents')}
+          />
+          <ShortcutButton
             icon="💳"
             label="Payments"
             onPress={() => navigation.navigate('PendingPayments')}
@@ -59,7 +71,7 @@ export function ManageHomeScreen() {
           <Text style={styles.tipTitle}>Admin Access</Text>
           <Text style={styles.tipBody}>
             Confirm payments, manage distributors and countries, update products, and publish
-            company news and articles.
+            company news, articles, training, and events.
           </Text>
         </Card>
       </ScrollView>

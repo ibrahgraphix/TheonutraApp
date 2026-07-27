@@ -9,6 +9,7 @@ import {
   listPendingPaymentsHandler,
   confirmPaymentHandler,
   rejectPaymentHandler,
+  markOrderPaidManuallyHandler,
 } from '../controllers/payments.controller.js';
 
 const router = Router();
@@ -31,4 +32,5 @@ router.patch('/:id/confirm', requireStaff, confirmPaymentHandler);
 // PATCH /api/payments/:id/reject — reject payment (staff only)
 router.patch('/:id/reject', requireStaff, rejectPaymentHandler);
 
+router.patch('/awaiting/:orderId/mark-paid', authMiddleware, requireStaff, markOrderPaidManuallyHandler);
 export default router;
