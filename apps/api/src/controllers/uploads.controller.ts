@@ -3,10 +3,9 @@ import { getCloudinarySignature, deleteCloudinaryAsset } from '../services/uploa
 import { ApiError } from '../middleware/error.middleware.js';
 
 /**
- * GET /api/uploads/cloudinary-signature
+ * GET /api/uploads/cloudinary-signature?resourceType=image|raw
  * Returns a signed timestamp + signature for direct client uploads to
- * Cloudinary. Any authenticated user can call this (used by products,
- * articles, news, KYC docs, training PDFs, etc.).
+ * Cloudinary. Defaults to 'image' if resourceType is omitted or invalid.
  */
 export async function getCloudinarySignatureHandler(
   req: Request,
@@ -14,7 +13,8 @@ export async function getCloudinarySignatureHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const signature = await getCloudinarySignature();
+    const resourceType = req.query['resourceType'] === 'raw' ? 'raw' : 'image';
+    const signature = await getCloudinarySignature(resourceType);
     res.status(200).json(signature);
   } catch (err) {
     next(err);
@@ -23,10 +23,7 @@ export async function getCloudinarySignatureHandler(
 
 /**
  * POST /api/uploads/delete
- * Deletes a Cloudinary asset by URL. Staff only. Used by the frontend to
- * clean up images/PDFs that were uploaded but never attached to a saved
- * record (e.g. admin picked a new image before saving, or left the screen
- * without saving at all).
+ * Deletes a Cloudinary asset by URL. Staff only.
  */
 export async function deleteUploadedAssetHandler(
   req: Request,

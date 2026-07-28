@@ -21,4 +21,6 @@ export type ManageStackParamList = {
   ManageTrainingMaterials: { categoryId: string; categoryName: string };
   ManageEvents: undefined;
   AddEditEvent: { eventId?: string };
+  ManageKyc: undefined;
+  CompanyAnalytics: undefined;
 };

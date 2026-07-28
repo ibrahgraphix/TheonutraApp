@@ -67,6 +67,22 @@ export function ManageHomeScreen() {
           />
         </View>
 
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="🪪"
+            label="KYC Review"
+            onPress={() => navigation.navigate('ManageKyc')}
+          />
+        </View>
+
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="📊"
+            label="Analytics"
+            onPress={() => navigation.navigate('CompanyAnalytics')}
+          />
+        </View>
+
         <Card style={styles.tip}>
           <Text style={styles.tipTitle}>Admin Access</Text>
           <Text style={styles.tipBody}>

@@ -29,6 +29,7 @@ import trainingRouter from './routes/training.routes.js';
 import eventsRouter from './routes/events.routes.js';
 import loyaltyRouter from './routes/loyalty.routes.js';
 import auditLogRouter from './routes/auditLog.routes.js';
+import analyticsAdminRoutes from './routes/analyticsAdmin.routes.js';
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/training',       trainingRouter);                 // Step 20 — a
 app.use('/api/events',         eventsRouter);                   // Step 21 — auth inside router
 app.use('/api/loyalty',        loyaltyRouter);                  // Step 22 — auth inside router
 app.use('/api/audit-log',      auditLogRouter);                  // Step 22 — auth inside router
+app.use('/api/analytics/admin', analyticsAdminRoutes);           //More steps
 
 // ── Centralised error handler (must be last) ──────────────────────────────────
 

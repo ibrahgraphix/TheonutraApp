@@ -33,6 +33,7 @@ import { colors, spacing, typography } from '../../theme';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AccountStackParamList } from '../../navigation/accountTypes';
+import { useAuthStore } from '../../store/authStore';
 
 type Tab = 'overview' | 'transactions' | 'withdrawals';
 
@@ -58,25 +59,40 @@ export function WalletScreen() {
   const [payoutDetails, setPayoutDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [w, txData, wdData, kycData] = await Promise.all([
-        getMyWallet(),
-        getMyTransactions(1, 30),
-        getMyWithdrawals(),
-        getMyKyc().catch(() => ({ status: 'unknown', submission: null })),
-      ]);
-      setWallet(w);
-      setTransactions(txData.transactions);
-      setWithdrawals(wdData);
-      setKycVerified(kycData.status === 'approved');
-    } catch {
-      // keep partial state
-    } finally {
-      setLoading(false);
+  const isStaff = useAuthStore((s) => {
+  const role = s.distributor?.role;
+  return role === 'admin' || role === 'company_staff';
+});
+
+const load = useCallback(async () => {
+  setLoading(true);
+  try {
+    const [w, txData, wdData] = await Promise.all([
+      getMyWallet(),
+      getMyTransactions(1, 30),
+      getMyWithdrawals(),
+    ]);
+    setWallet(w);
+    setTransactions(txData.transactions);
+    setWithdrawals(wdData);
+    // Staff don't earn commissions and never need KYC to withdraw —
+    // skip the gate entirely for admin/company_staff.
+    if (isStaff) {
+      setKycVerified(true);
+    } else {
+      try {
+        const kycData = await getMyKyc();
+        setKycVerified(kycData.status === 'approved');
+      } catch {
+        setKycVerified(false);
+      }
     }
-  }, []);
+  } catch {
+    // keep partial state
+  } finally {
+    setLoading(false);
+  }
+}, [isStaff]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -155,7 +171,7 @@ export function WalletScreen() {
           title="Request Withdrawal"
           style={styles.withdrawBtn}
         />
-        {kycVerified === false ? (
+        {kycVerified === false && !isStaff ? (
           <TouchableOpacity onPress={() => navigation.navigate('KycVerification')}>
             <Text style={styles.kycWarning}>⚠️ Verify your identity to unlock withdrawals</Text>
           </TouchableOpacity>

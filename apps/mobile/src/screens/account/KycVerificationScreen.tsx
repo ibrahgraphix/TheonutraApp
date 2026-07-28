@@ -11,6 +11,8 @@ import {
   Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { Button, Card, ShopHeader } from '../../components';
 import { getMyKyc, submitKyc, uploadImage } from '../../services/api';
@@ -60,12 +62,12 @@ export function KycVerificationScreen() {
   const [submission, setSubmission] = useState<KycSubmission | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form state
   const [docType, setDocType] = useState<IdType>('national_id');
   const [idNumber, setIdNumber] = useState('');
   const [frontUrl, setFrontUrl] = useState('');
   const [backUrl, setBackUrl] = useState('');
   const [selfieUrl, setSelfieUrl] = useState('');
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -82,24 +84,46 @@ export function KycVerificationScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const pickAndUpload = async (setter: (url: string) => void, hint: string) => {
+  const pickImageFor = async (setter: (url: string) => void, fieldKey: string, hint: string) => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow photo library access to upload a document.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploadingField(fieldKey);
     try {
-      const { launchImageLibrary } = await import('react-native-image-picker').catch(() => {
-        throw new Error('Image picker not available');
-      });
-      launchImageLibrary({ mediaType: 'photo', quality: 0.85 }, async (res) => {
-        if (res.didCancel || res.errorCode) return;
-        const asset = res.assets?.[0];
-        if (!asset?.uri) return;
-        try {
-          const url = await uploadImage(asset.uri, hint);
-          setter(url);
-        } catch (e) {
-          Alert.alert('Upload Failed', e instanceof Error ? e.message : 'Try again');
-        }
-      });
-    } catch {
-      Alert.alert('Error', 'Image picker not available. Enter URLs manually.');
+      const url = await uploadImage(result.assets[0].uri, hint, 'image');
+      setter(url);
+    } catch (e) {
+      Alert.alert('Upload Failed', e instanceof Error ? e.message : 'Try again');
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+  const pickPdfFor = async (setter: (url: string) => void, fieldKey: string, hint: string) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingField(fieldKey);
+    try {
+      const url = await uploadImage(result.assets[0].uri, hint, 'raw');
+      setter(url);
+    } catch (e) {
+      Alert.alert('Upload Failed', e instanceof Error ? e.message : 'Try again');
+    } finally {
+      setUploadingField(null);
     }
   };
 
@@ -145,7 +169,6 @@ export function KycVerificationScreen() {
       <ShopHeader onBack={() => navigation.goBack()} title="Identity Verification" />
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Status banner for submitted users */}
         {status !== 'not_submitted' && status !== 'resubmit' && info ? (
           <Card style={[styles.statusBanner, { borderLeftColor: info.color }]}>
             <Text style={styles.statusIcon}>{info.icon}</Text>
@@ -193,22 +216,30 @@ export function KycVerificationScreen() {
 
             <Card>
               <Text style={styles.sectionTitle}>Upload Documents</Text>
+              <Text style={styles.hint}>Photo or PDF accepted for each document.</Text>
+
               <DocUploadRow
                 label="Document Front *"
                 url={frontUrl}
-                onPress={() => pickAndUpload(setFrontUrl, 'kyc-front')}
+                uploading={uploadingField === 'front'}
+                onPickImage={() => pickImageFor(setFrontUrl, 'front', 'kyc-front')}
+                onPickPdf={() => pickPdfFor(setFrontUrl, 'front', 'kyc-front')}
                 onChangeText={setFrontUrl}
               />
               <DocUploadRow
                 label="Document Back (optional)"
                 url={backUrl}
-                onPress={() => pickAndUpload(setBackUrl, 'kyc-back')}
+                uploading={uploadingField === 'back'}
+                onPickImage={() => pickImageFor(setBackUrl, 'back', 'kyc-back')}
+                onPickPdf={() => pickPdfFor(setBackUrl, 'back', 'kyc-back')}
                 onChangeText={setBackUrl}
               />
               <DocUploadRow
                 label="Selfie with document (optional)"
                 url={selfieUrl}
-                onPress={() => pickAndUpload(setSelfieUrl, 'kyc-selfie')}
+                uploading={uploadingField === 'selfie'}
+                onPickImage={() => pickImageFor(setSelfieUrl, 'selfie', 'kyc-selfie')}
+                onPickPdf={() => pickPdfFor(setSelfieUrl, 'selfie', 'kyc-selfie')}
                 onChangeText={setSelfieUrl}
               />
             </Card>
@@ -237,31 +268,44 @@ export function KycVerificationScreen() {
 function DocUploadRow({
   label,
   url,
-  onPress,
+  uploading,
+  onPickImage,
+  onPickPdf,
   onChangeText,
 }: {
   label: string;
   url: string;
-  onPress: () => void;
+  uploading: boolean;
+  onPickImage: () => void;
+  onPickPdf: () => void;
   onChangeText: (v: string) => void;
 }) {
+  const isPdf = url.toLowerCase().includes('.pdf') || url.includes('/raw/upload/');
+
   return (
     <View style={styles.docRow}>
       <Text style={styles.docLabel}>{label}</Text>
       <View style={styles.docInputRow}>
         <TextInput
           onChangeText={onChangeText}
-          placeholder="Paste URL or tap upload"
+          placeholder="Paste URL, or tap 📷/📄 to upload"
           placeholderTextColor={colors.textSecondary}
           style={styles.docInput}
           value={url}
         />
-        <TouchableOpacity onPress={onPress} style={styles.uploadBtn}>
+        <TouchableOpacity onPress={onPickImage} style={styles.uploadBtn}>
           <Text style={styles.uploadBtnText}>📷</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={onPickPdf} style={styles.uploadBtn}>
+          <Text style={styles.uploadBtnText}>📄</Text>
+        </TouchableOpacity>
       </View>
-      {url ? (
+      {uploading ? (
+        <ActivityIndicator color={colors.primary} style={styles.uploadingIndicator} />
+      ) : url && !isPdf ? (
         <Image source={{ uri: url }} style={styles.docPreview} resizeMode="cover" />
+      ) : url && isPdf ? (
+        <Text style={styles.pdfBadge}>📄 PDF uploaded</Text>
       ) : null}
     </View>
   );
@@ -272,6 +316,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   content: { gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xxxl },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
+  hint: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
   statusBanner: { borderLeftWidth: 4, gap: spacing.sm },
   statusIcon: { fontSize: 32, textAlign: 'center' },
   statusLabel: { ...typography.h3, fontWeight: '700', textAlign: 'center' },
@@ -324,4 +369,6 @@ const styles = StyleSheet.create({
   },
   uploadBtnText: { fontSize: 20 },
   docPreview: { borderRadius: 8, height: 100, marginTop: spacing.xs, width: '100%' },
+  uploadingIndicator: { marginTop: spacing.xs },
+  pdfBadge: { ...typography.bodySmall, color: colors.success, marginTop: spacing.xs },
 });

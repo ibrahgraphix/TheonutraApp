@@ -80,6 +80,7 @@ export function AccountScreen() {
   const distributor = useAuthStore((s) => s.distributor);
   const logout = useAuthStore((s) => s.logout);
   const updateDistributor = useAuthStore((s) => s.updateDistributor);
+  const isStaff = distributor?.role === 'admin' || distributor?.role === 'company_staff';
 
   const [months, setMonths] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -250,12 +251,14 @@ export function AccountScreen() {
             label="Referral"
             onPress={() => navigation.navigate('Referral')}
           />
+          {!isStaff ? (
           <QuickLink
             icon="⭐"
             label="Loyalty"
             onPress={() => navigation.navigate('Loyalty')}
           />
-        </View>
+          ) : null}
+</View>
 
         {/* Monthly Analysis */}
         <Text style={styles.sectionTitle}>Monthly Analysis</Text>

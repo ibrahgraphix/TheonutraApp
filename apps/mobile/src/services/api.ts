@@ -991,89 +991,6 @@ export type CreateProductPayload = {
   }>;
 };
 
-export async function getCloudinarySignature(): Promise<{
-  signature: string;
-  timestamp: number;
-  apiKey: string;
-  cloudName: string;
-  transformation: string;
-}> {
-  const response = await fetch(`${API_BASE_URL}/api/uploads/cloudinary-signature`, {
-    headers: {
-      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(parseApiError(await response.text(), 'Failed to get upload signature'));
-  }
-
-  return response.json();
-}
-
-/**
- * Uploads a local image URI to Cloudinary using a signed request from the API.
- * Returns the secure CDN URL (works for products, news, articles).
- */
-export async function uploadImage(localUri: string, folderHint = 'upload'): Promise<string> {
-  const sig = await getCloudinarySignature();
-  const form = new FormData();
-
-  const filename = localUri.split('/').pop() ?? `${folderHint}-${Date.now()}.jpg`;
-  const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-  form.append('file', {
-    uri: localUri,
-    name: filename,
-    type,
-  } as unknown as Blob);
-  form.append('api_key', sig.apiKey);
-  form.append('timestamp', String(sig.timestamp));
-  form.append('signature', sig.signature);
-  form.append('transformation', sig.transformation);
-
-  const uploadUrl = `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`;
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', uploadUrl);
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const result = JSON.parse(xhr.responseText) as { secure_url?: string; error?: { message?: string } };
-          if (result.secure_url) {
-            resolve(result.secure_url);
-          } else {
-            reject(new Error(result.error?.message || 'Image upload failed'));
-          }
-        } catch {
-          reject(new Error('Failed to parse upload response'));
-        }
-      } else {
-        try {
-          const result = JSON.parse(xhr.responseText) as { error?: { message?: string } };
-          reject(new Error(result.error?.message || `Upload failed with status ${xhr.status}`));
-        } catch {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      }
-    };
-
-    xhr.onerror = () => {
-      reject(new Error('Network request failed'));
-    };
-
-    xhr.send(form);
-  });
-}
-
-/** @deprecated Prefer uploadImage — kept for existing product callers */
-export async function uploadProductImage(localUri: string): Promise<string> {
-  return uploadImage(localUri, 'product');
-}
-
 export async function createProduct(payload: CreateProductPayload): Promise<Product> {
   const response = await fetch(`${API_BASE_URL}/api/products`, {
     method: 'POST',
@@ -2280,4 +2197,155 @@ export async function hardDeleteEvent(id: string): Promise<void> {
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to delete event'));
+}
+
+export async function getCloudinarySignature(
+  resourceType: 'image' | 'raw' = 'image',
+): Promise<{
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  transformation: string;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/uploads/cloudinary-signature?resourceType=${resourceType}`,
+    {
+      headers: {
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(parseApiError(await response.text(), 'Failed to get upload signature'));
+  }
+
+  return response.json();
+}
+
+/**
+ * Uploads a local file URI to Cloudinary using a signed request from the API.
+ * resourceType 'image' (default) works for photos; 'raw' works for PDFs and
+ * other non-image files. Returns the secure CDN URL.
+ */
+export async function uploadImage(
+  localUri: string,
+  folderHint = 'upload',
+  resourceType: 'image' | 'raw' = 'image',
+): Promise<string> {
+  const sig = await getCloudinarySignature(resourceType);
+  const form = new FormData();
+
+  const filename = localUri.split('/').pop() ?? `${folderHint}-${Date.now()}`;
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const type =
+    resourceType === 'raw'
+      ? 'application/pdf'
+      : ext === 'png'
+      ? 'image/png'
+      : ext === 'webp'
+      ? 'image/webp'
+      : 'image/jpeg';
+
+  form.append('file', {
+    uri: localUri,
+    name: filename,
+    type,
+  } as unknown as Blob);
+  form.append('api_key', sig.apiKey);
+  form.append('timestamp', String(sig.timestamp));
+  form.append('signature', sig.signature);
+  if (sig.transformation) {
+    form.append('transformation', sig.transformation);
+  }
+
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${sig.cloudName}/${resourceType}/upload`;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadUrl);
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText) as { secure_url?: string; error?: { message?: string } };
+          if (result.secure_url) {
+            resolve(result.secure_url);
+          } else {
+            reject(new Error(result.error?.message || 'Upload failed'));
+          }
+        } catch {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else {
+        try {
+          const result = JSON.parse(xhr.responseText) as { error?: { message?: string } };
+          reject(new Error(result.error?.message || `Upload failed with status ${xhr.status}`));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network request failed'));
+    };
+
+    xhr.send(form);
+  });
+}
+
+/** @deprecated Prefer uploadImage — kept for existing product callers */
+export async function uploadProductImage(localUri: string): Promise<string> {
+  return uploadImage(localUri, 'product');
+}
+
+export interface CompanyOverview {
+  totalSales: number;
+  totalRevenue: number;
+  activeMembers: number;
+  inactiveMembers: number;
+  newRegistrationsThisMonth: number;
+  totalDistributors: number;
+  currency: string;
+}
+
+export interface CountryPerformance {
+  countryId: string;
+  countryName: string;
+  distributorCount: number;
+  totalSales: number;
+  orderCount: number;
+}
+
+export interface ProductPerformance {
+  productId: string;
+  productName: string;
+  unitsSold: number;
+  totalRevenue: number;
+}
+
+export async function getCompanyOverview(): Promise<CompanyOverview> {
+  const response = await fetch(`${API_BASE_URL}/api/analytics/admin/company-overview`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch company overview'));
+  return response.json();
+}
+
+export async function getCountryPerformance(): Promise<CountryPerformance[]> {
+  const response = await fetch(`${API_BASE_URL}/api/analytics/admin/country-performance`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch country performance'));
+  return response.json();
+}
+
+export async function getProductPerformance(): Promise<ProductPerformance[]> {
+  const response = await fetch(`${API_BASE_URL}/api/analytics/admin/product-performance`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch product performance'));
+  return response.json();
 }

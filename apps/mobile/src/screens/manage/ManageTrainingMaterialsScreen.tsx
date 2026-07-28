@@ -80,7 +80,7 @@ export function ManageTrainingMaterialsScreen() {
     try {
       // Reuses the same signed-upload flow used for images; Cloudinary
       // accepts raw file uploads through the same signature endpoint.
-      const uploadedUrl = await uploadImage(result.assets[0].uri, 'training-pdf');
+      const uploadedUrl = await uploadImage(result.assets[0].uri, 'training-pdf', 'raw');
       setPdfUrl(uploadedUrl);
     } catch (err) {
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Could not upload PDF.');

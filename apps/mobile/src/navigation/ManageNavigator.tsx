@@ -23,6 +23,8 @@ import { PostNewsScreen } from '../screens/manage/PostNewsScreen';
 import { ProductListScreen } from '../screens/manage/ProductListScreen';
 import { ResetPasswordScreen } from '../screens/manage/ResetPasswordScreen';
 import type { ManageStackParamList } from './manageTypes';
+import { ManageKycScreen } from '../screens/manage/ManageKycScreen';
+import { CompanyAnalyticsScreen } from '../screens/manage/CompanyAnalyticsScreen';
 
 const Stack = createNativeStackNavigator<ManageStackParamList>();
 
@@ -51,6 +53,8 @@ export function ManageNavigator() {
       <Stack.Screen name="ManageTrainingMaterials" component={ManageTrainingMaterialsScreen} />
       <Stack.Screen name="ManageEvents" component={ManageEventsScreen} />
       <Stack.Screen name="AddEditEvent" component={AddEditEventScreen} />
+      <Stack.Screen name="ManageKyc" component={ManageKycScreen} />
+      <Stack.Screen name="CompanyAnalytics" component={CompanyAnalyticsScreen} />
     </Stack.Navigator>
   );
 }
