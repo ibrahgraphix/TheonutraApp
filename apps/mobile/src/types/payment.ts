@@ -2,7 +2,7 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed';
 
 export type PaymentMethod = 'bank_transfer' | 'mobile_money';
 
-export type MobileMoneyProvider = 'M-Pesa' | 'Tigo Pesa' | 'Airtel Money';
+export type MobileMoneyProvider = 'M-Pesa' | 'Tigo Pesa' | 'Airtel Money' | 'Mixx by Yas';
 
 export interface Payment {
   id: string;

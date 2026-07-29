@@ -36,12 +36,13 @@ import {
   getMonthLabelForKey,
   getMonthlyAnalysis,
   getOrders,
-  getMyRankProgress,
+  getMyCompensationSnapshot,
   getMyWallet,
   getNotificationUnreadCount,
+  type CompensationSnapshot,
 } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
-import type { MonthlyAnalysis, Order, RankProgress, WalletBalance } from '../../types';
+import type { MonthlyAnalysis, Order, WalletBalance } from '../../types';
 import { formatCurrency, formatDate, formatOrderStatus } from '../../utils/format';
 import { colors, spacing, typography } from '../../theme';
 import type { AccountStackParamList } from '../../navigation/accountTypes';
@@ -64,14 +65,15 @@ const phoneSchema = z.object({
 // Backend has no per-wallet currency field yet — using a single default.
 const DEFAULT_CURRENCY = 'USD';
 
-// Rank ladder display
+// Active Status Rank color ladder
 const RANK_COLORS: Record<string, string> = {
-  Member: '#6b7280',
-  Bronze: '#cd7f32',
-  Silver: '#9ca3af',
-  Gold: '#f59e0b',
-  Platinum: '#06b6d4',
-  Diamond: '#8b5cf6',
+  '1 Star': '#6b7280',
+  '2 Star': '#94a3b8',
+  '3 Star': '#cd7f32',
+  '4 Star': '#06b6d4',
+  '5 Star': '#f59e0b',
+  '6 Star': '#8b5cf6',
+  L: '#dc2626',
 };
 
 export function AccountScreen() {
@@ -88,7 +90,7 @@ export function AccountScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [rankProgress, setRankProgress] = useState<RankProgress | null>(null);
+  const [compensation, setCompensation] = useState<CompensationSnapshot | null>(null);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -113,19 +115,19 @@ export function AccountScreen() {
     Promise.all([
       getAnalysisMonths(distributor.id),
       getOrders(distributor.id),
-      getMyRankProgress().catch(() => null),
+      isStaff ? Promise.resolve(null) : getMyCompensationSnapshot().catch(() => null),
       getMyWallet().catch(() => null),
       getNotificationUnreadCount().catch(() => ({ count: 0 })),
-    ]).then(([m, o, rp, wb, uc]) => {
+    ]).then(([m, o, comp, wb, uc]) => {
       setMonths(m);
       setSelectedMonth(m[0] ?? '');
       setOrders(o.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-      if (rp) setRankProgress(rp);
+      if (comp) setCompensation(comp);
       if (wb) setWallet(wb);
       setUnreadCount((uc as { count: number })?.count ?? 0);
       setLoading(false);
     });
-  }, [distributor]);
+  }, [distributor, isStaff]);
 
   useEffect(() => {
     if (!distributor || !selectedMonth) return;
@@ -179,8 +181,8 @@ export function AccountScreen() {
 
   if (!distributor) return null;
 
-  const rankColor = rankProgress?.currentRank
-    ? (RANK_COLORS[rankProgress.currentRank.name] ?? colors.primary)
+  const rankColor = compensation?.activeStatusRank
+    ? (RANK_COLORS[compensation.activeStatusRank.name] ?? colors.primary)
     : colors.primary;
 
   return (
@@ -196,28 +198,30 @@ export function AccountScreen() {
           <Text style={styles.phone}>{distributor.phone}</Text>
         </Card>
 
-        {/* Rank & PV card */}
-        {rankProgress ? (
+        {/* Compensation Plan card — PPV / CGV / Active Status Rank */}
+        {!isStaff && compensation ? (
           <Card style={[styles.rankCard, { borderLeftColor: rankColor }]}>
             <View style={styles.rankHeader}>
               <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
                 <Text style={styles.rankBadgeText}>
-                  ⭐ {rankProgress.currentRank?.name ?? 'Member'}
+                  ⭐ {compensation.activeStatusRank.name}
                 </Text>
               </View>
-              {rankProgress.nextRank ? (
-                <Text style={styles.rankNext}>→ {rankProgress.nextRank.name}</Text>
-              ) : (
-                <Text style={styles.rankNext}>🏆 Top Rank!</Text>
-              )}
+              <Text style={styles.rankNext}>
+                OPB {compensation.activeStatusRank.opb_percent}%
+              </Text>
             </View>
             <View style={styles.pvRow}>
-              <PvStat label="Personal PV" value={rankProgress.personalPV ?? 0} />
-              <PvStat label="Team PV" value={rankProgress.teamPV ?? 0} />
-              {rankProgress.nextRank ? (
-                <PvStat label="PV to Next" value={Math.max(0, rankProgress.personalPVNeeded ?? 0)} />
-              ) : null}
+              <PvStat label="PPV" value={compensation.ppv} />
+              <PvStat label="CGV" value={compensation.cgv} />
+              <PvStat
+                label="Qualified GV"
+                value={Math.max(0, compensation.cgv - compensation.ppv)}
+              />
             </View>
+            <Text style={styles.rankHint}>
+              PPV = your personal points · CGV = your points + your whole team's points
+            </Text>
           </Card>
         ) : null}
 
@@ -252,13 +256,13 @@ export function AccountScreen() {
             onPress={() => navigation.navigate('Referral')}
           />
           {!isStaff ? (
-          <QuickLink
-            icon="⭐"
-            label="Loyalty"
-            onPress={() => navigation.navigate('Loyalty')}
-          />
+            <QuickLink
+              icon="⭐"
+              label="Loyalty"
+              onPress={() => navigation.navigate('Loyalty')}
+            />
           ) : null}
-</View>
+        </View>
 
         {/* Monthly Analysis */}
         <Text style={styles.sectionTitle}>Monthly Analysis</Text>
@@ -535,6 +539,7 @@ const styles = StyleSheet.create({
   },
   rankBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   rankNext: { ...typography.bodySmall, color: colors.textSecondary },
+  rankHint: { ...typography.caption, color: colors.textSecondary },
   pvRow: { flexDirection: 'row', justifyContent: 'space-between' },
   pvStat: { alignItems: 'center', flex: 1 },
   pvStatValue: { ...typography.h3, color: colors.primary, fontWeight: '700' },

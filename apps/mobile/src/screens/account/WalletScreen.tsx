@@ -38,8 +38,13 @@ import { useAuthStore } from '../../store/authStore';
 type Tab = 'overview' | 'transactions' | 'withdrawals';
 
 // Backend has no per-wallet currency field yet — using a single default.
-// Change this if your client's primary market uses a different currency.
 const DEFAULT_CURRENCY = 'USD';
+
+// Per THEONUTRA Compensation Plan V1 §6 — mirror these if wallet_settings
+// ever changes; a dedicated GET /api/wallet/settings endpoint would be the
+// next step to make these live instead of hardcoded.
+const MIN_WITHDRAWAL = 20000;
+const WITHDRAWAL_FEE_PCT = 2;
 
 export function WalletScreen() {
   const navigation =
@@ -51,7 +56,6 @@ export function WalletScreen() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
 
-  // Withdrawal modal state
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [kycVerified, setKycVerified] = useState<boolean | null>(null);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -60,39 +64,37 @@ export function WalletScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const isStaff = useAuthStore((s) => {
-  const role = s.distributor?.role;
-  return role === 'admin' || role === 'company_staff';
-});
+    const role = s.distributor?.role;
+    return role === 'admin' || role === 'company_staff';
+  });
 
-const load = useCallback(async () => {
-  setLoading(true);
-  try {
-    const [w, txData, wdData] = await Promise.all([
-      getMyWallet(),
-      getMyTransactions(1, 30),
-      getMyWithdrawals(),
-    ]);
-    setWallet(w);
-    setTransactions(txData.transactions);
-    setWithdrawals(wdData);
-    // Staff don't earn commissions and never need KYC to withdraw —
-    // skip the gate entirely for admin/company_staff.
-    if (isStaff) {
-      setKycVerified(true);
-    } else {
-      try {
-        const kycData = await getMyKyc();
-        setKycVerified(kycData.status === 'approved');
-      } catch {
-        setKycVerified(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [w, txData, wdData] = await Promise.all([
+        getMyWallet(),
+        getMyTransactions(1, 30),
+        getMyWithdrawals(),
+      ]);
+      setWallet(w);
+      setTransactions(txData.transactions);
+      setWithdrawals(wdData);
+      if (isStaff) {
+        setKycVerified(true);
+      } else {
+        try {
+          const kycData = await getMyKyc();
+          setKycVerified(kycData.status === 'approved');
+        } catch {
+          setKycVerified(false);
+        }
       }
+    } catch {
+      // keep partial state
+    } finally {
+      setLoading(false);
     }
-  } catch {
-    // keep partial state
-  } finally {
-    setLoading(false);
-  }
-}, [isStaff]);
+  }, [isStaff]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -111,10 +113,18 @@ const load = useCallback(async () => {
     setShowWithdraw(true);
   };
 
+  const parsedAmount = parseFloat(withdrawAmount) || 0;
+  const feeAmount = parsedAmount * (WITHDRAWAL_FEE_PCT / 100);
+  const netAmount = parsedAmount - feeAmount;
+
   const submitWithdrawal = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) {
       Alert.alert('Error', 'Enter a valid amount.');
+      return;
+    }
+    if (amount < MIN_WITHDRAWAL) {
+      Alert.alert('Error', `Minimum withdrawal is ${formatCurrency(MIN_WITHDRAWAL, DEFAULT_CURRENCY)}.`);
       return;
     }
     if (!payoutDetails.trim()) {
@@ -160,7 +170,6 @@ const load = useCallback(async () => {
     <View style={styles.container}>
       <ShopHeader onBack={() => navigation.goBack()} title="Wallet" />
 
-      {/* Balance card */}
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Available Balance</Text>
         <Text style={styles.balanceAmount}>
@@ -178,7 +187,6 @@ const load = useCallback(async () => {
         ) : null}
       </View>
 
-      {/* Tab switcher */}
       <View style={styles.tabs}>
         {(['overview', 'transactions', 'withdrawals'] as Tab[]).map((t) => (
           <TouchableOpacity
@@ -270,11 +278,13 @@ const load = useCallback(async () => {
         />
       )}
 
-      {/* Withdrawal modal */}
       <Modal animationType="slide" transparent visible={showWithdraw}>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={styles.modalCard}>
             <Text style={styles.modalTitle}>Request Withdrawal</Text>
+            <Text style={styles.modalHint}>
+              Minimum {formatCurrency(MIN_WITHDRAWAL, DEFAULT_CURRENCY)} · {WITHDRAWAL_FEE_PCT}% withdrawal fee applies
+            </Text>
             <View style={styles.methodRow}>
               {(['bank', 'mobile_money'] as WithdrawalMethod[]).map((m) => (
                 <TouchableOpacity
@@ -304,12 +314,18 @@ const load = useCallback(async () => {
               style={styles.input}
               value={withdrawAmount}
             />
+            {parsedAmount > 0 ? (
+              <View style={styles.feeBreakdown}>
+                <Text style={styles.feeLine}>Fee ({WITHDRAWAL_FEE_PCT}%): {formatCurrency(feeAmount, DEFAULT_CURRENCY)}</Text>
+                <Text style={styles.feeLineNet}>You'll receive: {formatCurrency(netAmount, DEFAULT_CURRENCY)}</Text>
+              </View>
+            ) : null}
             <TextInput
               onChangeText={setPayoutDetails}
               placeholder={
                 withdrawMethod === 'bank'
                   ? 'Account number / bank name'
-                  : 'Mobile money number'
+                  : 'Mobile money number (M-Pesa, Airtel Money, Mixx by Yas)'
               }
               placeholderTextColor={colors.textSecondary}
               style={styles.input}
@@ -366,6 +382,7 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
   },
   modalTitle: { ...typography.h3, color: colors.text },
+  modalHint: { ...typography.caption, color: colors.textSecondary, marginTop: -spacing.sm },
   methodRow: { flexDirection: 'row', gap: spacing.sm },
   methodBtn: {
     borderColor: colors.border,
@@ -386,4 +403,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     padding: spacing.md,
   },
+  feeBreakdown: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: 8,
+    gap: 2,
+    padding: spacing.sm,
+  },
+  feeLine: { ...typography.caption, color: colors.textSecondary },
+  feeLineNet: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
 });

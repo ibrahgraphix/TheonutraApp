@@ -1,41 +1,29 @@
-//teamsServices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 
 // ── Shared shapes ─────────────────────────────────────────────────────────────
 
 export interface TeamMember {
-  /** profiles.id of this downline member */
   memberId: string;
   distributorId: string;
   fullName: string;
   phoneNumber: string;
   countryId: string;
-  /** profiles.id of who recruited this member */
   referredBy: string | null;
   isActive: boolean;
-  /** 1 = direct recruit, 2 = their recruit, etc. */
   level: number;
-  /** Aggregate personal sales amount this calendar month (0 if none) */
   monthlySales: number;
-  /** ISO timestamp this member's account was created — powers "Joined <date>" */
   createdAt: string;
+  activeStatusRankName?: string;
+  leadershipRankName?: string | null;
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-/**
- * Fetches all rows from `downline_tree` for the given root distributor UUID,
- * optionally limited to a specific level, then enriches them with:
- *  - extra profile fields (phone, country, is_active, created_at) via a bulk
- *    profile fetch
- *  - current-month personal sales aggregated from the `sales` table
- */
 async function fetchTeam(
   distributorId: string,
   levelFilter?: number,
 ): Promise<TeamMember[]> {
-  // ── 1. Query the view ──────────────────────────────────────────────────────
   let query = supabase
     .from('downline_tree')
     .select('root_id, member_id, full_name, distributor_id, referred_by, level')
@@ -69,7 +57,7 @@ async function fetchTeam(
     throw new ApiError(500, `Failed to fetch team profiles: ${profileError.message}`);
   }
 
-  const profileMap = new Map<
+  const profileMap = new Map
     string,
     { phoneNumber: string; countryId: string; isActive: boolean; createdAt: string }
   >();
@@ -82,8 +70,67 @@ async function fetchTeam(
     });
   }
 
+  // ── 2.5. Bulk-fetch active status + leadership rank NAMES for the tree ────
+  // Two-step lookup (rank IDs on profiles → rank names) instead of an
+  // embedded join, since we don't need to guess the exact FK constraint name
+  // this way — works regardless of what Postgres auto-named the constraint.
+  const { data: rankedProfiles, error: rankProfileError } = await supabase
+    .from('profiles')
+    .select('id, active_status_rank_id, leadership_rank_id')
+    .in('id', memberIds);
+
+  if (rankProfileError) {
+    throw new ApiError(500, `Failed to fetch team rank assignments: ${rankProfileError.message}`);
+  }
+
+  const activeStatusRankIds = [
+    ...new Set((rankedProfiles ?? []).map((p) => p.active_status_rank_id).filter(Boolean)),
+  ] as string[];
+  const leadershipRankIds = [
+    ...new Set((rankedProfiles ?? []).map((p) => p.leadership_rank_id).filter(Boolean)),
+  ] as string[];
+
+  const activeStatusNameMap = new Map<string, string>();
+  if (activeStatusRankIds.length > 0) {
+    const { data: activeStatusRanks, error: asrError } = await supabase
+      .from('active_status_ranks')
+      .select('id, name')
+      .in('id', activeStatusRankIds);
+    if (asrError) {
+      throw new ApiError(500, `Failed to fetch active status rank names: ${asrError.message}`);
+    }
+    for (const r of activeStatusRanks ?? []) {
+      activeStatusNameMap.set(r.id as string, r.name as string);
+    }
+  }
+
+  const leadershipNameMap = new Map<string, string>();
+  if (leadershipRankIds.length > 0) {
+    const { data: leadershipRanks, error: lrError } = await supabase
+      .from('leadership_ranks')
+      .select('id, name')
+      .in('id', leadershipRankIds);
+    if (lrError) {
+      throw new ApiError(500, `Failed to fetch leadership rank names: ${lrError.message}`);
+    }
+    for (const r of leadershipRanks ?? []) {
+      leadershipNameMap.set(r.id as string, r.name as string);
+    }
+  }
+
+  const rankMap = new Map<string, { activeStatus?: string; leadership?: string | null }>();
+  for (const rp of rankedProfiles ?? []) {
+    rankMap.set(rp.id as string, {
+      activeStatus: rp.active_status_rank_id
+        ? activeStatusNameMap.get(rp.active_status_rank_id as string)
+        : undefined,
+      leadership: rp.leadership_rank_id
+        ? leadershipNameMap.get(rp.leadership_rank_id as string) ?? null
+        : null,
+    });
+  }
+
   // ── 3. Aggregate current-month personal sales for each member ─────────────
-  //  Use the first day of the current UTC month as the lower bound.
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
@@ -91,13 +138,12 @@ async function fetchTeam(
     .from('sales')
     .select('distributor_id, amount')
     .in('distributor_id', memberIds)
-    .gte('sale_date', monthStart.slice(0, 10)); // sale_date is a `date` column
+    .gte('sale_date', monthStart.slice(0, 10));
 
   if (salesError) {
     throw new ApiError(500, `Failed to fetch team sales: ${salesError.message}`);
   }
 
-  // Build a map: memberId → sum(amount) this month
   const salesMap = new Map<string, number>();
   for (const s of salesRows ?? []) {
     const prev = salesMap.get(s.distributor_id as string) ?? 0;
@@ -107,6 +153,7 @@ async function fetchTeam(
   // ── 4. Assemble the response ───────────────────────────────────────────────
   return rows.map((r) => {
     const profile = profileMap.get(r.member_id as string);
+    const ranks = rankMap.get(r.member_id as string);
     return {
       memberId: r.member_id as string,
       distributorId: r.distributor_id as string,
@@ -118,40 +165,22 @@ async function fetchTeam(
       level: r.level as number,
       monthlySales: salesMap.get(r.member_id as string) ?? 0,
       createdAt: profile?.createdAt ?? '',
+      activeStatusRankName: ranks?.activeStatus,
+      leadershipRankName: ranks?.leadership ?? null,
     };
   });
 }
 
 // ── Public service functions ──────────────────────────────────────────────────
 
-/**
- * Returns the full multi-level downline for a distributor as a flat list.
- * The frontend reconstructs the tree using `referredBy` + `level`.
- *
- * @param distributorId  auth.users UUID of the requesting distributor
- */
 export async function getMyTeam(distributorId: string): Promise<TeamMember[]> {
   return fetchTeam(distributorId);
 }
 
-/**
- * Returns only direct recruits (level = 1) for the given distributor.
- * Used by the initial (collapsed) team view in the mobile app.
- *
- * @param distributorId  auth.users UUID of the requesting distributor
- */
 export async function getDirectRecruits(distributorId: string): Promise<TeamMember[]> {
   return fetchTeam(distributorId, 1);
 }
 
-/**
- * Staff helper: returns each distributor's direct recruit count in bulk.
- *
- * NOTE: `sellers.service.ts → listSellers` already computes `directDownlineCount`
- * inline (via a second profiles query) for the sellers list screen. This function
- * exists as a standalone utility for any future staff dashboard that needs the
- * same data outside the paginated sellers list.
- */
 export async function getTeamCountsBySeller(): Promise<Record<string, number>> {
   const { data, error } = await supabase
     .from('profiles')

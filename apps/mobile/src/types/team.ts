@@ -7,6 +7,8 @@ export interface TeamMember {
   teamSales: number;
   recruitsCount: number;
   children: TeamMember[];
+  activeStatusRankName?: string;
+  leadershipRankName?: string | null;
 }
 
 export interface DashboardStats {

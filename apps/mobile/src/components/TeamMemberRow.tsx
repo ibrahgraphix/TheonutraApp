@@ -14,6 +14,18 @@ interface TeamMemberRowProps {
   onPress: () => void;
 }
 
+const RANK_COLORS: Record<string, string> = {
+  '1 Star': '#6b7280',
+  '2 Star': '#94a3b8',
+  '3 Star': '#cd7f32',
+  '4 Star': '#06b6d4',
+  '5 Star': '#f59e0b',
+  '6 Star': '#8b5cf6',
+  L: '#dc2626',
+};
+
+const LEADERSHIP_COLOR = '#059669';
+
 export function TeamMemberRow({
   member,
   currency,
@@ -23,6 +35,9 @@ export function TeamMemberRow({
   onPress,
 }: TeamMemberRowProps) {
   const hasChildren = member.children.length > 0;
+  const rankColor = member.activeStatusRankName
+    ? (RANK_COLORS[member.activeStatusRankName] ?? colors.primary)
+    : undefined;
 
   return (
     <View style={[styles.wrapper, { marginLeft: depth * spacing.lg }]}>
@@ -48,7 +63,19 @@ export function TeamMemberRow({
         )}
         <Avatar name={member.distributor.fullName} size={40} />
         <View style={styles.info}>
-          <Text style={styles.name}>{member.distributor.fullName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{member.distributor.fullName}</Text>
+            {member.activeStatusRankName ? (
+              <View style={[styles.badge, { backgroundColor: rankColor }]}>
+                <Text style={styles.badgeText}>{member.activeStatusRankName}</Text>
+              </View>
+            ) : null}
+            {member.leadershipRankName ? (
+              <View style={[styles.badge, { backgroundColor: LEADERSHIP_COLOR }]}>
+                <Text style={styles.badgeText}>{member.leadershipRankName}</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.meta}>
             {member.distributor.distributorId} · Joined{' '}
             {formatDate(member.distributor.joinDate)}
@@ -93,10 +120,26 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  nameRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
   name: {
     ...typography.body,
     color: colors.text,
     fontWeight: '600',
+  },
+  badge: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   meta: {
     ...typography.caption,

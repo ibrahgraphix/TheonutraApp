@@ -248,6 +248,8 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
       teamSales: 0,
       recruitsCount: 0,
       children: [],
+      activeStatusRankName: member.activeStatusRankName,
+      leadershipRankName: member.leadershipRankName,
     });
   }
 
@@ -2348,4 +2350,60 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch product performance'));
   return response.json();
+}
+
+export interface CompensationSnapshot {
+  ppv: number;
+  cgv: number;
+  activeStatusRank: {
+    id: string;
+    name: string;
+    level_order: number;
+    min_cgv: number;
+    min_ppv: number;
+    opb_percent: number;
+  };
+}
+
+export async function getMyCompensationSnapshot(month?: string): Promise<CompensationSnapshot> {
+  const url = month
+    ? `${API_BASE_URL}/api/compensation/me?month=${encodeURIComponent(month)}`
+    : `${API_BASE_URL}/api/compensation/me`;
+  const response = await fetch(url, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch compensation snapshot'));
+  return response.json();
+}
+
+export async function getActiveStatusRanks(): Promise<CompensationSnapshot['activeStatusRank'][]> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/active-status-ranks`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch ranks'));
+  return response.json();
+}
+
+export async function getPendingOPBBonuses(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/opb/pending`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch OPB bonuses'));
+  return response.json();
+}
+
+export async function approveOPB(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/opb/${encodeURIComponent(id)}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to approve OPB bonus'));
+}
+
+export async function rejectOPB(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/opb/${encodeURIComponent(id)}/reject`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject OPB bonus'));
 }
