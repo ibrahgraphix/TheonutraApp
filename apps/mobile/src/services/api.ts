@@ -24,29 +24,14 @@ function getApiBaseUrl() {
   const apiUrl =
     Constants.expoConfig?.extra?.apiUrl ||
     Constants.manifest?.extra?.apiUrl ||
+    process.env.EXPO_PUBLIC_API_URL ||
     undefined;
 
   if (typeof apiUrl === 'string' && apiUrl.length > 0) {
     return apiUrl;
   }
 
-  const debuggerHost =
-    typeof Constants.manifest?.debuggerHost === 'string'
-      ? Constants.manifest.debuggerHost
-      : undefined;
-
-  if (debuggerHost) {
-    const host = debuggerHost.split(':')[0];
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `http://${host}:3001`;
-    }
-
-    if (Constants.platform?.android && !Constants.isDevice) {
-      return 'http://10.0.2.2:3001';
-    }
-  }
-
-  return 'http://localhost:3001';
+  return 'https://theonutraapp-backend.onrender.com';
 }
 
 const API_BASE_URL = getApiBaseUrl();
