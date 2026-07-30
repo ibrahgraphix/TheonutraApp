@@ -1421,7 +1421,6 @@ export async function getMyWallet(): Promise<WalletBalance> {
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch wallet'));
   const data = await response.json();
-  console.log('Wallet data:', data); // Debug log
   return {
     balance: Number(data.balance) || 0,
     currency: data.currency || 'TZS',
@@ -1441,7 +1440,6 @@ export async function getMyTransactions(
   );
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch transactions'));
   const data = await response.json();
-  console.log('Transactions data:', data); // Debug log
   return {
     transactions: data.transactions || [],
     total: data.total || 0,
@@ -1473,7 +1471,6 @@ export async function getMyWithdrawals(): Promise<WithdrawalRequest[]> {
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch withdrawals'));
   const data = await response.json();
-  console.log('Withdrawals data:', data); // Debug log
   return data || [];
 }
 

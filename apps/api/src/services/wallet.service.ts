@@ -38,6 +38,7 @@ export interface WithdrawalRequest {
     full_name: string;
     distributor_id: string;
   };
+  full_name?: string; // Added for direct profile name access
 }
 
 /**
@@ -254,9 +255,10 @@ export async function requestWithdrawal(
  * Returns own withdrawal requests history.
  */
 export async function getMyWithdrawals(distributorId: string): Promise<WithdrawalRequest[]> {
+  // Fetch withdrawal requests without embedded profiles first
   const { data, error } = await supabase
     .from('withdrawal_requests')
-    .select('*, profiles!inner(countries!inner(currency_code))')
+    .select('*')
     .eq('distributor_id', distributorId)
     .order('requested_at', { ascending: false });
 
@@ -264,13 +266,30 @@ export async function getMyWithdrawals(distributorId: string): Promise<Withdrawa
     throw new ApiError(500, `Failed to fetch withdrawal history: ${error.message}`);
   }
 
+  // Get currency from profile separately to avoid relationship ambiguity
+  let currency = 'USD';
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('countries!inner(currency_code)')
+      .eq('id', distributorId)
+      .single();
+    
+    if (profile) {
+      currency = (profile as any)?.countries?.currency_code || 'USD';
+    }
+  } catch (error) {
+    console.error('Failed to fetch currency for withdrawals:', error);
+    currency = 'USD';
+  }
+
   return (data ?? []).map(req => ({
     ...req,
     amount: Number(req.amount),
-    currencyCode: (req.profiles as any)?.countries?.currency_code || 'USD',
-    created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
-    requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
-    reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null, // Format date properly
+    currencyCode: currency,
+    created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null,
+    requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null,
+    reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null,
   }));
 }
 
@@ -278,16 +297,10 @@ export async function getMyWithdrawals(distributorId: string): Promise<Withdrawa
  * Returns all withdrawal requests (staff only). Optionally filters by status.
  */
 export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequest[]> {
+  // Fetch withdrawal requests without embedded profiles first
   let query = supabase
     .from('withdrawal_requests')
-    .select(`
-      *,
-      profiles!withdrawal_requests_distributor_id_fkey (
-        full_name,
-        distributor_id,
-        countries!inner(currency_code)
-      )
-    `)
+    .select('*')
     .order('requested_at', { ascending: false });
 
   if (status) {
@@ -300,18 +313,46 @@ export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequ
     throw new ApiError(500, `Failed to fetch withdrawal requests: ${error.message}`);
   }
 
-  return (data ?? []).map((req: any) => ({
-    ...req,
-    amount: Number(req.amount),
-    created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
-    requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
-    reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null, // Format date properly
-    currencyCode: (req.profiles as any)?.countries?.currency_code || 'USD',
-    profiles: req.profiles ? {
-      full_name: req.profiles.full_name,
-      distributor_id: req.profiles.distributor_id,
-    } : undefined,
-  }));
+  // Get all distributor IDs to fetch their profiles in batch
+  const distributorIds = [...new Set((data ?? []).map(req => req.distributor_id as string))];
+  
+  const profileMap = new Map<string, { full_name: string; distributor_id: string; currency_code: string }>();
+  
+  if (distributorIds.length > 0) {
+    try {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, distributor_id, countries!inner(currency_code)')
+        .in('id', distributorIds);
+      
+      for (const profile of profiles ?? []) {
+        profileMap.set(profile.id as string, {
+          full_name: profile.full_name as string,
+          distributor_id: profile.distributor_id as string,
+          currency_code: (profile as any)?.countries?.currency_code || 'USD',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch profiles for withdrawals:', error);
+    }
+  }
+
+  return (data ?? []).map((req: any) => {
+    const profile = profileMap.get(req.distributor_id as string);
+    return {
+      ...req,
+      amount: Number(req.amount),
+      created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null,
+      requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null,
+      reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null,
+      currencyCode: profile?.currency_code || 'USD',
+      full_name: profile?.full_name,
+      profiles: profile ? {
+        full_name: profile.full_name,
+        distributor_id: profile.distributor_id,
+      } : undefined,
+    };
+  });
 }
 
 /**
