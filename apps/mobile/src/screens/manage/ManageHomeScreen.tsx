@@ -73,22 +73,19 @@ export function ManageHomeScreen() {
             label="KYC Review"
             onPress={() => navigation.navigate('ManageKyc')}
           />
-        </View>
-
-        <View style={styles.grid}>
           <ShortcutButton
             icon="📊"
             label="Analytics"
             onPress={() => navigation.navigate('CompanyAnalytics')}
           />
         </View>
-
         <View style={styles.grid}>
           <ShortcutButton
             icon="💎"
             label="OPB Bonuses"
             onPress={() => navigation.navigate('ManageOPB')}
           />
+          <View style={styles.placeholder} />
         </View>
 
         <Card style={styles.tip}>
@@ -108,6 +105,7 @@ const styles = StyleSheet.create({
   content: { gap: spacing.lg, padding: spacing.lg, paddingBottom: spacing.xxxl },
   subtitle: { ...typography.body, color: colors.textSecondary },
   grid: { flexDirection: 'row', gap: spacing.md },
+  placeholder: { flex: 1 },
   tip: { backgroundColor: colors.surfaceMuted },
   tipTitle: { ...typography.label, color: colors.primary, marginBottom: spacing.sm },
   tipBody: { ...typography.bodySmall, color: colors.textSecondary },
