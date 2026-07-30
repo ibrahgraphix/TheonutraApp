@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env.js';
+import ws from 'ws';
 
 /**
  * Supabase client initialised with the SERVICE ROLE key.
@@ -25,4 +26,11 @@ export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, 
       Authorization: `Bearer ${env.SUPABASE_SECRET_KEY}`,
     },
   },
+  realtime: {
+    // Provide a WebSocket implementation for Node.js < 22, which lacks native
+    // WebSocket support. On Node.js 22+ (native WS) this is a no-op.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    transport: ws as any,
+  },
 });
+

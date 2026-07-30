@@ -5,6 +5,9 @@
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev:mobile": "npm -w mobile run start",
     "dev:api": "npm -w api run dev",
