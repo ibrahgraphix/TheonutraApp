@@ -51,10 +51,11 @@ export function OrderConfirmationScreen() {
     );
   }
 
-  const paymentLabel =
-    order.payment.method === 'bank_transfer'
+  const paymentLabel = order.payment
+    ? order.payment.method === 'bank_transfer'
       ? `Bank Transfer${order.payment.reference ? ` · Ref: ${order.payment.reference}` : ''}`
-      : `${order.payment.provider} · ${order.payment.phone}`;
+      : `${order.payment.provider || 'Mobile Money'} · ${order.payment.phone || ''}`
+    : 'Payment method not available';
 
   return (
     <View style={styles.container}>

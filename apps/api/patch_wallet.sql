@@ -2,6 +2,17 @@
 -- Step 15 Migration: Wallet + Withdrawals
 -- =========================================================
 
+-- Create wallet_settings table
+CREATE TABLE IF NOT EXISTS wallet_settings (
+    id                     int primary key default 1 check (id = 1),
+    min_withdrawal         numeric(12,2) not null default 20000.00,
+    withdrawal_fee_pct     numeric(5,2) not null default 2.00
+);
+
+INSERT INTO wallet_settings (id, min_withdrawal, withdrawal_fee_pct)
+VALUES (1, 20000.00, 2.00)
+ON CONFLICT (id) DO NOTHING;
+
 -- 1. Create wallets table
 CREATE TABLE IF NOT EXISTS wallets (
     distributor_id  uuid primary key references profiles(id) on delete cascade,

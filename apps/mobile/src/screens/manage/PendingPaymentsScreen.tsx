@@ -46,7 +46,7 @@ export function PendingPaymentsScreen() {
     const enriched = await Promise.all(
       data.map(async (p) => ({
         ...p,
-        distributorName: await getDistributorName(p.distributorId),
+        distributorName: (p as any).buyerName || (p.distributorId ? await getDistributorName(p.distributorId) : 'Unknown'),
       })),
     );
     setPayments(enriched);
@@ -97,7 +97,7 @@ export function PendingPaymentsScreen() {
   const handleMarkPaid = (order: AwaitingPaymentOrder) => {
     Alert.alert(
       'Mark as Paid',
-      `Mark ${formatCurrency(order.totalAmount, order.currencyCode)} from ${order.buyerName ?? 'this distributor'} as paid?`,
+      `Mark ${formatCurrency(order.total, order.currency)} from ${order.buyerName ?? 'this distributor'} as paid?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -193,7 +193,7 @@ export function PendingPaymentsScreen() {
                 <Badge label="Pay Later" variant="secondary" />
               </View>
               <Text style={styles.amount}>
-                {formatCurrency(item.totalAmount, item.currencyCode)}
+                {formatCurrency(item.total, item.currency)}
               </Text>
               <Text style={styles.meta}>
                 {item.items?.length ?? 0} item{item.items?.length !== 1 ? 's' : ''}

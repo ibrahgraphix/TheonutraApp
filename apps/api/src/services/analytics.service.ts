@@ -2,12 +2,17 @@ import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { listMyOrders } from './orders.service.js';
 import { getCommissionsSummary } from './commissions.service.js';
+import { convertToUSD } from '../config/exchangeRates.js';
 
 export interface MonthlyOverview {
   month: string;
   personalSales: number;
   teamSales: number;
   bonusEarned: number;
+  currency: string;
+  personalSalesUSD: number;
+  teamSalesUSD: number;
+  bonusEarnedUSD: number;
 }
 
 /**
@@ -26,6 +31,19 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   const startDate = new Date(`${targetMonth}-01`);
   const endDate = new Date(startDate);
   endDate.setMonth(endDate.getMonth() + 1); // First day of next month
+
+  // Get distributor's country to determine currency
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('countries!inner(currency_code)')
+    .eq('id', distributorId)
+    .single();
+
+  if (profileError || !profile) {
+    throw new ApiError(404, 'Distributor profile not found');
+  }
+
+  const currency = (profile.countries as any)?.currency_code || 'USD';
 
   // 1. Personal sales this month
   const { data: personalSalesData, error: personalError } = await supabase
@@ -72,11 +90,20 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   // 3. Bonus earned this month (reuse commissions service)
   const commissionSummary = await getCommissionsSummary(distributorId, targetMonth);
 
+  // Convert to USD for dashboard display
+  const personalSalesUSD = convertToUSD(personalSales, currency);
+  const teamSalesUSD = convertToUSD(teamSales, currency);
+  const bonusEarnedUSD = convertToUSD(commissionSummary.total_commission, currency);
+
   return {
     month: targetMonth,
     personalSales,
     teamSales,
     bonusEarned: commissionSummary.total_commission,
+    currency,
+    personalSalesUSD,
+    teamSalesUSD,
+    bonusEarnedUSD,
   };
 }
 

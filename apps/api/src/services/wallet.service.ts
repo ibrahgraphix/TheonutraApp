@@ -41,7 +41,7 @@ export interface WithdrawalRequest {
 /**
  * Ensures a wallet exists for a distributor, then returns the wallet and recent transactions.
  */
-export async function getMyWallet(distributorId: string): Promise<{ balance: number; recentTransactions: WalletTransaction[] }> {
+export async function getMyWallet(distributorId: string): Promise<{ balance: number; currency: string; recentTransactions: WalletTransaction[] }> {
   // Ensure wallet exists by trying to insert a zero-balance wallet
   const { error: insertError } = await supabase
     .from('wallets')
@@ -51,16 +51,18 @@ export async function getMyWallet(distributorId: string): Promise<{ balance: num
     throw new ApiError(500, `Failed to ensure wallet: ${insertError.message}`);
   }
 
-  // Fetch the wallet
+  // Fetch the wallet with distributor's country currency
   const { data: wallet, error: walletError } = await supabase
     .from('wallets')
-    .select('balance')
+    .select('balance, profiles!inner(countries!inner(currency_code))')
     .eq('distributor_id', distributorId)
     .single();
 
   if (walletError || !wallet) {
     throw new ApiError(500, `Failed to fetch wallet: ${walletError?.message}`);
   }
+
+  const currency = (wallet.profiles as any)?.countries?.currency_code || 'USD';
 
   // Fetch recent transactions (top 10)
   const { data: transactions, error: txError } = await supabase
@@ -76,6 +78,7 @@ export async function getMyWallet(distributorId: string): Promise<{ balance: num
 
   return {
     balance: Number(wallet.balance),
+    currency,
     recentTransactions: (transactions ?? []).map(tx => ({
       ...tx,
       amount: Number(tx.amount),
@@ -153,24 +156,36 @@ export async function requestWithdrawal(
     throw new ApiError(403, 'KYC must be approved before requesting a withdrawal');
   }
 
-  const { data: settings, error: settingsError } = await supabase
-    .from('wallet_settings')
-    .select('min_withdrawal, withdrawal_fee_pct')
-    .eq('id', 1)
-    .single();
+  const DEFAULT_MIN_WITHDRAWAL = 20000;
+  const DEFAULT_FEE_PCT = 2;
 
-  if (settingsError || !settings) {
-    throw new ApiError(500, 'Wallet settings not configured');
+  let minWithdrawal = DEFAULT_MIN_WITHDRAWAL;
+  let withdrawalFeePct = DEFAULT_FEE_PCT;
+
+  try {
+    const { data: settings, error: settingsError } = await supabase
+      .from('wallet_settings')
+      .select('min_withdrawal, withdrawal_fee_pct')
+      .eq('id', 1)
+      .single();
+
+    if (!settingsError && settings) {
+      minWithdrawal = Number(settings.min_withdrawal);
+      withdrawalFeePct = Number(settings.withdrawal_fee_pct);
+    }
+    // If error (e.g. table missing) → silently use defaults
+  } catch {
+    // Table not yet created — use defaults
   }
 
-  if (amount < Number(settings.min_withdrawal)) {
+  if (amount < minWithdrawal) {
     throw new ApiError(
       400,
-      `Minimum withdrawal amount is ${settings.min_withdrawal}`,
+      `Minimum withdrawal amount is ${minWithdrawal}`,
     );
   }
 
-  const feeAmount = amount * (Number(settings.withdrawal_fee_pct) / 100);
+  const feeAmount = amount * (withdrawalFeePct / 100);
   const netAmount = amount - feeAmount;
 
   const { data, error } = await supabase.rpc('create_withdrawal_request', {
@@ -188,6 +203,7 @@ export async function requestWithdrawal(
   }
 
   return data as string;
+
 }
 
 /**

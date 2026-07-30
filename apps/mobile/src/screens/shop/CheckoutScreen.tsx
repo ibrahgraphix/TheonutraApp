@@ -83,14 +83,14 @@ export function CheckoutScreen() {
     try {
       const order = await submitBankTransferOrder(
         distributor.id,
-        distributor.country,
+        distributor.countryId ?? distributor.country,
         items,
         data.reference,
       );
       clearCart();
       navigation.replace('OrderConfirmation', { orderId: order.id });
-    } catch {
-      Alert.alert('Error', 'Could not submit your order. Please try again.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not submit your order. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -104,15 +104,15 @@ export function CheckoutScreen() {
       await new Promise((r) => setTimeout(r, 1500));
       const order = await submitMobileMoneyOrder(
         distributor.id,
-        distributor.country,
+        distributor.countryId ?? distributor.country,
         items,
         provider,
         data.phone,
       );
       clearCart();
       navigation.replace('OrderConfirmation', { orderId: order.id });
-    } catch {
-      Alert.alert('Error', 'Could not process payment request. Please try again.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not process payment request. Please try again.');
       setMobilePending(false);
     } finally {
       setSubmitting(false);

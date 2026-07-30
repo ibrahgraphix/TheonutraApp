@@ -161,10 +161,10 @@ export async function getDashboardStats(
 
   const stats = await response.json();
   return {
-    personalSales: stats.personalSales ?? 0,
-    teamSales: stats.teamSales ?? 0,
-    bonusEarned: stats.bonusEarned ?? 0,
-    currency: stats.currency ?? 'USD',
+    personalSales: stats.personalSalesUSD ?? stats.personalSales ?? 0,
+    teamSales: stats.teamSalesUSD ?? stats.teamSales ?? 0,
+    bonusEarned: stats.bonusEarnedUSD ?? stats.bonusEarned ?? 0,
+    currency: 'USD', // Dashboard always shows in USD
     period: stats.period ?? new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
   };
 }
@@ -459,12 +459,30 @@ export async function getCompanyBankDetails(): Promise<CompanyBankDetails> {
   };
 }
 
+// Maps mobile-app display names → backend enum slugs
+const MOBILE_PROVIDER_SLUG: Record<string, string> = {
+  'M-Pesa':       'mpesa',
+  'Tigo Pesa':    'tigopesa',
+  'Airtel Money': 'airtelmoney',
+  'Mixx by Yas':  'airtelmoney', // Mixx is Airtel's brand; map to nearest supported slug
+};
+
+/**
+ * @param countryId  UUID of the country (NOT the display name)
+ */
 export async function submitBankTransferOrder(
   distributorId: string,
-  country: string,
+  countryId: string,
   items: OrderItem[],
   reference: string,
 ): Promise<Order> {
+  // Resolve country UUID if a name was accidentally passed
+  let resolvedCountryId = countryId;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(countryId)) {
+    resolvedCountryId = await resolveCountryId(countryId);
+  }
+
   // First create the order
   const orderResponse = await fetch(`${API_BASE_URL}/api/orders`, {
     method: 'POST',
@@ -473,7 +491,7 @@ export async function submitBankTransferOrder(
       Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
     },
     body: JSON.stringify({
-      countryId: country,
+      countryId: resolvedCountryId,
       items: items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -507,13 +525,26 @@ export async function submitBankTransferOrder(
   return order;
 }
 
+/**
+ * @param countryId  UUID of the country (NOT the display name)
+ */
 export async function submitMobileMoneyOrder(
   distributorId: string,
-  country: string,
+  countryId: string,
   items: OrderItem[],
   provider: MobileMoneyProvider,
   phone: string,
 ): Promise<Order> {
+  // Resolve country UUID if a name was accidentally passed
+  let resolvedCountryId = countryId;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(countryId)) {
+    resolvedCountryId = await resolveCountryId(countryId);
+  }
+
+  // Map display name → backend slug
+  const providerSlug = MOBILE_PROVIDER_SLUG[provider] ?? 'mpesa';
+
   // First create the order
   const orderResponse = await fetch(`${API_BASE_URL}/api/orders`, {
     method: 'POST',
@@ -522,7 +553,7 @@ export async function submitMobileMoneyOrder(
       Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
     },
     body: JSON.stringify({
-      countryId: country,
+      countryId: resolvedCountryId,
       items: items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -536,7 +567,7 @@ export async function submitMobileMoneyOrder(
 
   const order = await orderResponse.json();
 
-  // Then submit the mobile money payment
+  // Then submit the mobile money payment (include provider slug)
   const paymentResponse = await fetch(`${API_BASE_URL}/api/payments/mobile-money`, {
     method: 'POST',
     headers: {
@@ -545,6 +576,7 @@ export async function submitMobileMoneyOrder(
     },
     body: JSON.stringify({
       orderId: order.id,
+      provider: providerSlug,
       phoneNumber: phone,
     }),
   });
@@ -568,7 +600,21 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     throw new Error(parseApiError(await response.text(), 'Failed to fetch order'));
   }
 
-  return await response.json();
+  const data = await response.json();
+  
+  // Map backend response to mobile app's Order type
+  return {
+    ...data,
+    distributorId: data.buyerId,
+    total: data.totalAmount,
+    currency: data.currencyCode,
+    payment: data.payment ? {
+      method: data.payment.method,
+      reference: data.payment.reference,
+      provider: data.payment.provider,
+      phone: data.payment.phone,
+    } : undefined,
+  };
 }
 
 
@@ -583,7 +629,21 @@ export async function getOrders(distributorId: string): Promise<Order[]> {
     throw new Error(parseApiError(await response.text(), 'Failed to fetch orders'));
   }
 
-  return await response.json();
+  const data = await response.json();
+  
+  // Map backend response to mobile app's Order type
+  return data.map((order: any) => ({
+    ...order,
+    distributorId: order.buyerId,
+    total: order.totalAmount,
+    currency: order.currencyCode,
+    payment: order.payment ? {
+      method: order.payment.method,
+      reference: order.payment.reference,
+      provider: order.payment.provider,
+      phone: order.payment.phone,
+    } : undefined,
+  }));
 }
 
 export async function getPayments(distributorId: string): Promise<Payment[]> {
@@ -712,10 +772,10 @@ export async function getMonthlyAnalysis(
   return {
     month: data.month,
     label: data.label,
-    personalSales: data.personalSales ?? 0,
-    teamSales: data.teamSales ?? 0,
-    bonusEarned: data.bonusEarned ?? 0,
-    currency: data.currency ?? 'USD',
+    personalSales: data.personalSalesUSD ?? data.personalSales ?? 0,
+    teamSales: data.teamSalesUSD ?? data.teamSales ?? 0,
+    bonusEarned: data.bonusEarnedUSD ?? data.bonusEarned ?? 0,
+    currency: 'USD', // Dashboard always shows in USD
   };
 }
 
@@ -1155,7 +1215,25 @@ export async function getPendingPayments(): Promise<Payment[]> {
     throw new Error(parseApiError(await response.text(), 'Failed to fetch pending payments'));
   }
 
-  return await response.json();
+  const data = await response.json();
+  
+  // Map backend response to mobile app's Payment type
+  return data.map((payment: any) => ({
+    id: payment.id,
+    orderId: payment.orderId,
+    distributorId: payment.distributorId || payment.orderTotal ? '' : '', // Backend may not include this directly
+    amount: payment.amount,
+    currency: 'TZS', // Default currency - backend doesn't return it
+    method: payment.method,
+    status: 'pending' as const, // All pending payments are pending status
+    reference: payment.referenceNo,
+    provider: payment.provider,
+    phone: payment.phoneNumber,
+    createdAt: payment.createdAt,
+    // Include backend-specific fields for display
+    buyerName: payment.buyerName,
+    orderTotal: payment.orderTotal,
+  }));
 }
 
 export async function confirmPayment(paymentId: string): Promise<Payment> {
@@ -1341,7 +1419,12 @@ export async function getMyWallet(): Promise<WalletBalance> {
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch wallet'));
-  return response.json();
+  const data = await response.json();
+  return {
+    balance: data.balance,
+    currency: data.currency || 'TZS', // Use backend currency or default to TZS
+    recentTransactions: data.recentTransactions || [],
+  };
 }
 
 export async function getMyTransactions(
@@ -2113,7 +2196,7 @@ export async function submitPayLaterOrder(
   return response.json();
 }
 
-export interface AwaitingPaymentOrder extends Order {
+export interface AwaitingPaymentOrder extends Omit<Order, 'distributorId'> {
   buyerName?: string;
   distributorId?: string;
 }
@@ -2123,7 +2206,21 @@ export async function getAwaitingPaymentOrders(): Promise<AwaitingPaymentOrder[]
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch awaiting-payment orders'));
-  return response.json();
+  const data = await response.json();
+  
+  // Map backend response to mobile app's AwaitingPaymentOrder type
+  return data.map((order: any) => ({
+    ...order,
+    distributorId: order.buyerId,
+    total: order.totalAmount,
+    currency: order.currencyCode,
+    payment: order.payment ? {
+      method: order.payment.method,
+      reference: order.payment.reference,
+      provider: order.payment.provider,
+      phone: order.payment.phone,
+    } : undefined,
+  }));
 }
 
 export async function markOrderPaidManually(

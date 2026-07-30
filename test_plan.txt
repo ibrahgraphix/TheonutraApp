@@ -1,0 +1,352 @@
+================================================================================
+THEONUTRA APPLICATION - STEP-BY-STEP COMPLETE TESTING PLAN (TODO LIST)
+================================================================================
+
+This document serves as your complete step-by-step manual and automated testing guide
+for the entire Theonutra platform (React Native Mobile App + Express API backend +
+Supabase database).
+
+Follow the steps sequentially. Use the [ ] checkboxes to track your testing progress.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS:
+1. PREREQUISITES & SERVER SETUP
+2. DATABASE SEEDING
+3. USER REGISTRATION & AUTHENTICATION FLOW
+4. COUNTRIES & PRODUCT CATALOG MANAGEMENT (STAFF ONLY)
+5. DISTRIBUTOR SHOPPING & ORDER CHECKOUT FLOW
+6. PAYMENT VERIFICATION & PROOF APPROVAL (STAFF ONLY)
+7. CUSTOMER RETAIL SALES LOGGING & PROFIT TESTING (CUSTOMER TESTING FLOW)
+8. KYC VERIFICATION SUBMISSION & APPROVAL FLOW
+9. WALLET, COMMISSIONS, & WITHDRAWALS FLOW
+10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW
+11. TRAINING ACADEMY & KNOWLEDGE SHARING FLOW
+12. EVENTS, NEWS, & NOTIFICATIONS FLOW
+13. SYSTEM AUDIT LOGGING & SECURITY POLICIES
+14. AUTOMATED BACKEND INTEGRATION TESTS RUNBOOK
+--------------------------------------------------------------------------------
+
+[ ] 1. PREREQUISITES & SERVER SETUP
+    [ ] 1.1. Ensure Node.js version >= 22 is installed. Check with:
+             node -v
+    [ ] 1.2. Install dependencies from the root directory:
+             npm install
+    [ ] 1.3. Set up the environment variables in `apps/api/.env` (see `.env.example`).
+             Ensure Supabase credentials (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+             SUPABASE_ANON_KEY) and Port settings are correct.
+    [ ] 1.4. Start the backend server:
+             npm run dev:api
+             Verify that it starts successfully on http://localhost:3001
+    [ ] 1.5. Validate the backend health check endpoint:
+             Open http://localhost:3001/health in your browser.
+             Expected JSON response: { "status": "ok", "timestamp": "..." }
+    [ ] 1.6. Start the React Native / Expo application:
+             npm run dev:mobile
+             Open the app in an Android emulator, iOS simulator, or Expo Go.
+
+[ ] 2. DATABASE SEEDING
+    [ ] 2.1. Seed the default administrator account (credentials: ID: ADMIN-001, Pass: ChangeMe123!):
+             Run: npm -w api run seed:admin
+             Verify in Supabase dashboard that a profile is created in `profiles` with role='admin'.
+    [ ] 2.2. Seed the product catalog and countries:
+             Run: npm -w api run seed:catalog
+             Verify that countries (e.g., Tanzania, Kenya, Uganda) and initial products (e.g., Slimfit tea) 
+             with their corresponding country pricing and PVs are added.
+
+[ ] 3. USER REGISTRATION & AUTHENTICATION FLOW
+    [ ] 3.1. Mobile Login (Admin / Staff):
+             [ ] Open the mobile app.
+             [ ] Input ID "ADMIN-001" and Password "ChangeMe123!".
+             [ ] Verify successful login and automatic redirection to the "Home" and "Manage" tabs.
+             [ ] Log out from the Account tab.
+    [ ] 3.2. Mobile Login (Distributor):
+             [ ] Register a new seller (see Step 4.2 below) or use a seeded distributor.
+             [ ] Log in with the distributor credentials (e.g., ID: BF-TZ-99999, Pass: SellerPass123!).
+             [ ] Verify successful login and automatic redirection to "Home", "Shop", "Team", and "Account" tabs.
+             [ ] Verify the "Manage" tab is HIDDEN for this distributor.
+             [ ] Log out from the Account tab.
+    [ ] 3.3. Forgot / Reset Password flow:
+             [ ] On the mobile Login screen, tap "Forgot Password".
+             [ ] Enter a distributor's email/phone and submit.
+             [ ] Log in as Admin. Navigate to Manage -> Reset Password.
+             [ ] Select the distributor and input a new password. Save it.
+             [ ] Log out, then log in as the distributor using the new password to confirm.
+
+[ ] 4. COUNTRIES & PRODUCT CATALOG MANAGEMENT (STAFF ONLY)
+    [ ] 4.1. Country Management:
+             [ ] Log in as Admin/Staff. Navigate to Manage -> Countries.
+             [ ] Verify the list of existing countries is fetched.
+             [ ] Tap "Add Country". Input Name ("Rwanda"), Currency ("RWF"), ISO Code ("RW"). Save.
+             [ ] Verify "Rwanda" appears in the country list.
+             [ ] Tap "Edit" next to "Rwanda", change the Currency to "RWF-New" and save. Verify the update.
+    [ ] 4.2. Seller/Distributor Management:
+             [ ] Log in as Admin/Staff. Navigate to Manage -> Add Seller.
+             [ ] Fill in: ID: "BF-TZ-88888", Full Name: "Jane Smith", Phone: "+255711122233", Password: "Password123!", Country: "Tanzania". Save.
+             [ ] Verify the seller appears in Manage -> Distributors list.
+             [ ] Search for "Jane Smith" in the list. Tap her profile to view details.
+             [ ] Tap "Edit Seller", change her phone to "+255711122244". Save and verify.
+    [ ] 4.3. Product Catalog Management:
+             [ ] Log in as Admin/Staff. Navigate to Manage -> Products.
+             [ ] Tap "Add Product". Input Name ("Omega 3 Capsules"), Description ("Heart healthy"), PV ("45").
+             [ ] For country pricing: Select "Tanzania" -> Retail/Customer Price: "50000", Wholesale/Distributor Price: "40000", Toggle "Available".
+             [ ] Tap "Save".
+             [ ] Verify "Omega 3 Capsules" appears in the product list.
+             [ ] Tap "Edit Product" on "Omega 3 Capsules", change description to "Premium Heart Healthy" and save. Verify.
+
+[ ] 5. DISTRIBUTOR SHOPPING & ORDER CHECKOUT FLOW
+    [ ] 5.1. Country Selection:
+             [ ] Log in as a distributor (e.g. BF-TZ-99999).
+             [ ] Navigate to the "Shop" tab.
+             [ ] If multiple countries are available, verify a country selector is shown.
+             [ ] Verify that the shop catalog updates according to the selected country (only active, available products for that country are displayed, with distributor/wholesale prices).
+    [ ] 5.2. Shopping Cart & Inventory Checkout:
+             [ ] Browse products in the "Shop" tab.
+             [ ] Tap a product to view details. Verify description, PV, and wholesale price are correct.
+             [ ] Add "Omega 3 Capsules" (Qty: 2) and "Slimfit tea" (Qty: 1) to the cart.
+             [ ] Open the Cart screen. Verify total price and total PV calculation:
+                 Total Price = Sum(Quantity * Wholesale Price)
+                 Total PV = Sum(Quantity * Product PV)
+             [ ] Click "Checkout".
+             [ ] On Checkout screen, select delivery method or address.
+             [ ] Select payment method (e.g., "Bank Transfer").
+             [ ] Note the total amount to pay and submit the order.
+             [ ] Verify redirection to the "Order Confirmation" screen displaying the payment instructions (e.g., Bank Account details) and a field to upload payment proof.
+
+[ ] 6. PAYMENT VERIFICATION & PROOF APPROVAL (STAFF ONLY)
+    [ ] 6.1. Upload Payment Proof (Distributor):
+             [ ] Under the Order Confirmation screen (or via Order History on Account Screen), select the pending order.
+             [ ] Tap "Upload Payment Proof". Select a receipt image or screenshot.
+             [ ] Enter a reference transaction ID or note (e.g., "TXN-998877").
+             [ ] Submit. Verify status changes to "payment_submitted".
+    [ ] 6.2. Approve / Reject Payments (Staff):
+             [ ] Log in as Admin/Staff on the mobile app.
+             [ ] Navigate to Manage -> Pending Payments.
+             [ ] Verify that the order with reference "TXN-998877" appears in the list.
+             [ ] Tap the order to view the uploaded receipt image.
+             [ ] Tap "Approve Payment".
+             [ ] Log back in as the distributor. Go to Account -> Order History.
+             [ ] Verify the order status is now "paid" or "delivered".
+             [ ] Verify that the wholesale order PV is added to the distributor's PPV (Personal Volume) on the Account rank card.
+             [ ] Verify that a loyalty record has been created for the distributor based on the order value.
+             [ ] (Alternative Rejection Test): Place another order, upload proof, and as Admin tap "Reject Payment" and input notes "Receipt blurred". Verify the distributor sees status "rejected" with rejection notes.
+
+--------------------------------------------------------------------------------
+[ ] 7. CUSTOMER RETAIL SALES LOGGING & PROFIT TESTING (CUSTOMER TESTING FLOW)
+    
+    This feature is designed for distributors who sell physical stock directly to retail 
+    customers (non-distributors) at the retail/customer price. The distributor collects
+    the money directly from the customer, then logs the sale in the app to:
+    a) Earn the "Retail Profit" (Customer Price - Distributor Price) directly credited to their wallet.
+    b) Accumulate Personal Volume (PV) from the customer purchase, which boosts their PPV.
+    
+    Since this is a transaction-heavy backend service, test it using the automated scripts
+    and by checking the database tables and endpoints. Follow this step-by-step checklist:
+
+    [ ] 7.1. Run the Automated Customer Sales Test Script:
+             [ ] Open a terminal in the project root.
+             [ ] Run: npm -w api run test:customer-sales
+             [ ] Wait for the execution.
+             [ ] Verify that all 6 verification stages pass:
+                 - Logging in as admin and creating a test seller (BF-TZ-99999) if not exists.
+                 - Creating/updating a test product with:
+                   * Customer Price = 100,000
+                   * Distributor Price = 80,000
+                   * Product PV = 50
+                 - Logging a customer sale of 2 units via POST /api/customer-sales.
+                 - Verifying that a commission row of type "retail_profit" is created with amount = 40,000.
+                 - Verifying that GET /api/customer-sales returns the sale in the history.
+                 - Verifying that GET /api/ranks/me includes the 100 PV (2 units * 50 PV) in the distributor's personalPV.
+             
+    [ ] 7.2. Manual API testing (via Postman / cURL):
+             [ ] Log in as a distributor and obtain the Bearer Token.
+             [ ] Send a POST request to: http://localhost:3001/api/customer-sales
+                 Headers:
+                   Content-Type: application/json
+                   Authorization: Bearer <DISTRIBUTOR_TOKEN>
+                 Body:
+                   {
+                     "customerName": "John Customer",
+                     "customerPhone": "+255799988877",
+                     "countryId": "<COUNTRY_UUID>",
+                     "items": [
+                       { "productId": "<PRODUCT_UUID>", "quantity": 1 }
+                     ]
+                   }
+             [ ] Verify the response status is 201 Created and returns the logged sale ID, totalAmount, and totalPV.
+
+    [ ] 7.3. Database Ledger Verification (Supabase Dashboard):
+             [ ] Open your Supabase project dashboard.
+             [ ] View the `customer_sales` table. Verify a row exists with:
+                 - distributor_id: matching your test distributor UUID.
+                 - customer_name: "John Customer".
+                 - total_amount: equal to the Customer/Retail price of the product.
+                 - total_pv: equal to the PV of the product.
+             [ ] View the `customer_sale_items` table. Verify a row exists linking to the customer sale with unit_customer_price, unit_distributor_price, and quantity.
+             [ ] View the `commissions` table. Verify a row exists with:
+                 - beneficiary_id: your distributor UUID.
+                 - type: "retail_profit".
+                 - amount: (unit_customer_price - unit_distributor_price) * quantity.
+                 - source_id: the ID of the customer sale.
+                 - source_type: "customer_sale".
+             [ ] View the `wallets` table. Verify that the distributor's wallet balance has increased by the retail profit amount.
+             [ ] View the `wallet_transactions` table. Verify that a transaction ledger row has been created with:
+                 - type: "credit".
+                 - source_type: "commission".
+                 - source_id: the ID of the commission row.
+                 - amount: the retail profit amount.
+                 - balance_after: the updated wallet balance.
+
+    [ ] 7.4. Distributor App Progress Verification:
+             [ ] Log in as the distributor in the mobile app.
+             [ ] Go to the Account tab.
+             [ ] Verify that the Wallet balance (displayed on the Wallet quick link button) has increased by the retail profit amount.
+             [ ] Tap the Wallet button. Verify that the recent transaction list shows a "+ [Amount]" transaction labeled "commission" or "Retail Profit".
+             [ ] Verify that the PPV indicator on the Rank status card has increased by the PV of the logged customer sale.
+             [ ] Select the current month in the Monthly Analysis picker. Verify that the Personal Sales bar chart and text value increase by the customer sale amount.
+--------------------------------------------------------------------------------
+
+[ ] 8. KYC VERIFICATION SUBMISSION & APPROVAL FLOW
+    [ ] 8.1. Submit KYC (Distributor):
+             [ ] Log in as a new distributor (without approved KYC).
+             [ ] Go to Account -> Wallet.
+             [ ] Tap "Request Withdrawal".
+             [ ] Verify a warning alert is displayed stating "KYC Required".
+             [ ] Tap "Verify Now" (or navigate directly via Account -> KYC Verification).
+             [ ] Input full name, select document type (National ID / Passport), enter Document Number.
+             [ ] Tap "Upload Front Image" and select an image.
+             [ ] Tap "Upload Back Image" and select an image.
+             [ ] Tap "Upload Selfie Image" and select an image.
+             [ ] Tap "Submit Verification".
+             [ ] Verify the status screen changes to display "Verification Pending".
+             [ ] Try tapping KYC verification again. Verify it prevents re-submission while pending.
+
+[ ] 9. WALLET, COMMISSIONS, & WITHDRAWALS FLOW
+    [ ] 9.1. KYC Status Review (Staff):
+             [ ] Log in as Admin/Staff.
+             [ ] Navigate to Manage -> Manage KYC.
+             [ ] Locate the distributor's pending KYC request.
+             [ ] Tap "Review". View uploaded photos and inputs.
+             [ ] Tap "Approve". (Verify that the distributor profile's kyc_status updates to 'approved' in Supabase).
+             [ ] (Alternative Rejection Test): Submit KYC on another test account. As Admin, tap "Reject" and input notes "Image not clear". Verify the distributor sees status "rejected" with rejection notes and can re-submit.
+    [ ] 9.2. Request Withdrawal (Distributor):
+             [ ] Log in as the KYC-approved distributor.
+             [ ] Go to Account -> Wallet.
+             [ ] Verify that your wallet has some balance (can be earned via retail profit commissions or manual adjustment).
+             [ ] Tap "Request Withdrawal". Verify the modal pops up without KYC warnings.
+             [ ] Select payout method: "Bank" or "Mobile Money".
+             [ ] Input withdrawal amount (e.g. 25,000). Ensure it is above the minimum limit (e.g., 20,000).
+             [ ] Check the dynamic breakdown calculations:
+                 - Fee: 2% (e.g., 500)
+                 - You'll receive: Amount - Fee (e.g., 24,500)
+             [ ] Enter bank account details or mobile money phone number.
+             [ ] Click "Submit Request". Verify that the amount is immediately deducted from the wallet balance to reserve it.
+             [ ] Navigate to the "Withdrawals" tab in the Wallet screen. Verify that the request shows up with status "pending".
+    [ ] 9.3. Process Withdrawal (Staff):
+             [ ] Log in as Admin/Staff.
+             [ ] Navigate to Manage -> Pending Payments (or Wallet Withdrawals list if separate).
+             [ ] View the pending withdrawal request list.
+             [ ] Select the request.
+             [ ] Tap "Approve Request". (Verify status changes to "approved").
+             [ ] Verify that a debit transaction of type "withdrawal" is written to the distributor's ledger in Supabase.
+             [ ] Log back in as the distributor, open Wallet -> Withdrawals. Verify the status is "approved".
+             [ ] Log back in as Admin/Staff. Go to approved requests and select the withdrawal.
+             [ ] Tap "Mark Paid" (after executing the actual bank/mobile money transfer). Verify status updates to "paid".
+             [ ] (Alternative Rejection Test): Request another withdrawal. As Admin, tap "Reject Withdrawal" and input notes "Incorrect account details". Verify that the reserved withdrawal amount is fully refunded to the distributor's wallet balance.
+
+[ ] 10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW
+    [ ] 10.1. Referral Code & Registration:
+              [ ] Log in as a distributor. Navigate to Account -> Referral.
+              [ ] Verify that your unique Referral Link/Code is generated (e.g., linking your distributor ID).
+              [ ] Tap "Copy Link". Verify it copies to the clipboard.
+              [ ] Log out. Use the referral link or register a new seller by setting the referral parent distributor ID.
+              [ ] Verify that the signup is successful and the parent-child relationship is recorded.
+    [ ] 10.2. Team Tree Navigation:
+              [ ] Log in as the parent distributor.
+              [ ] Go to the "Team" tab.
+              [ ] Verify that the newly registered distributor appears in the list.
+              [ ] Tap on the team member to inspect their performance details (e.g., PPV, CGV, email/phone).
+              [ ] Log in as Admin/Staff. Navigate to Manage -> Distributors.
+              [ ] Select the parent distributor, and verify that staff can view the entire downline hierarchy tree of that distributor.
+
+[ ] 11. TRAINING ACADEMY & KNOWLEDGE SHARING FLOW
+    [ ] 11.1. Manage Training Content (Staff):
+              [ ] Log in as Admin/Staff. Navigate to Manage -> Training.
+              [ ] Tap "Add Topic". Input title ("Product Knowledge 101"). Save.
+              [ ] Select the topic and tap "Add Material".
+              [ ] Select Type: "PDF", "Video Link", or "Article".
+              [ ] Input title ("Slimfit Tea Benefits"), URL/Link, and a short description. Save.
+              [ ] Verify the material appears under the topic.
+    [ ] 11.2. Access Academy (Distributor):
+              [ ] Log in as a distributor.
+              [ ] Go to Account -> Training.
+              [ ] Verify that "Product Knowledge 101" appears in the topic list.
+              [ ] Tap the topic and select "Slimfit Tea Benefits".
+              [ ] Verify that the PDF downloads/displays or the video link opens successfully.
+
+[ ] 12. EVENTS, NEWS, & NOTIFICATIONS FLOW
+    [ ] 12.1. News Announcements:
+              [ ] Log in as Admin/Staff. Navigate to Manage -> Post News.
+              [ ] Input title ("Annual Convention 2026"), Content, and optionally upload a cover image. Save.
+              [ ] Log in as a distributor.
+              [ ] Go to the Home screen or News tab. Verify "Annual Convention 2026" appears.
+              [ ] Tap the article to view the complete details and content.
+    [ ] 12.2. Events RSVP:
+              [ ] Log in as Admin/Staff. Navigate to Manage -> Manage Events -> Add Event.
+              [ ] Input title ("Wellness Summit"), Date, Location (Virtual / Physical Address), Description. Save.
+              [ ] Log in as a distributor. Go to Account -> Events.
+              [ ] Verify "Wellness Summit" is displayed.
+              [ ] Tap "Register / RSVP". Verify RSVP counts update.
+              [ ] Tap "Unregister". Verify count decreases.
+    [ ] 12.3. System Notifications:
+              [ ] Perform actions that trigger automatic notifications:
+                  * Place an order (triggers order confirmation notification).
+                  * Approve an order payment (triggers order status update notification).
+                  * Approve/Reject KYC (triggers KYC status notification).
+                  * Approve/Reject Withdrawal (triggers withdrawal status notification).
+              [ ] Log in as the distributor. Look at the Account tab. Verify that the badge number on the "Notifications" link reflects the number of unread notifications.
+              [ ] Tap "Notifications". Verify the messages are listed and marked as read once viewed.
+
+[ ] 13. SYSTEM AUDIT LOGGING & SECURITY POLICIES
+    [ ] 13.1. Audit Trail Logging:
+              [ ] Go to the Supabase dashboard.
+              [ ] Inspect the `audit_logs` table.
+              [ ] Verify that actions like order approval, KYC status changes, password resets, and withdrawal reviews have logged records showing:
+                  - actor_id (the Admin UUID who performed the action).
+                  - action (e.g., "kyc_approved", "withdrawal_rejected").
+                  - target_type / target_id.
+                  - payload (JSON showing state changes).
+    [ ] 13.2. Row Level Security (RLS) Verification:
+              [ ] Attempt to make API requests as an unauthenticated user (no token). Verify the server returns 401 Unauthorized.
+              [ ] Attempt to request `/api/sellers` (distributors list) using a distributor token. Verify it returns 403 Forbidden (requires staff role).
+              [ ] Attempt to view another distributor's wallet transactions directly via database queries or modified API calls. Verify that Supabase RLS blocks this access, allowing distributors to select only their own records.
+
+--------------------------------------------------------------------------------
+[ ] 14. AUTOMATED BACKEND INTEGRATION TESTS RUNBOOK
+    
+    The backend provides a comprehensive suite of automated integration scripts
+    to test individual systems. Run these commands from the root directory or inside 
+    `apps/api` to verify the code logic:
+
+    [ ] 14.1. Catalog and Country Pricing:
+              npm -w api run test:catalog
+    [ ] 14.2. Team Tree & Downlines:
+              npm -w api run test:team
+    [ ] 14.3. Orders & Payment Processing:
+              npm -w api run test:orders
+    [ ] 14.4. Basic Commissions calculation:
+              npm -w api run test:commissions
+    [ ] 14.5. Analytics & Dashboard:
+              npm -w api run test:analytics
+    [ ] 14.6. Ranks and PV qualifications:
+              npm -w api run test:ranks
+    [ ] 14.7. Customer Sales and Retail Profit:
+              npm -w api run test:customer-sales
+    [ ] 14.8. Wallet & Withdrawals ledger logic:
+              npm -w api run test:wallet
+    [ ] 14.9. Team Bonus processing:
+              npm -w api run test:team-bonus
+    [ ] 14.10. Manual Adjustments & Bonuses:
+               npm -w api run test:manual-bonus
+    [ ] 14.11. Events, Loyalty, & Audit log:
+               npm -w api run test:events-loyalty-audit
+================================================================================

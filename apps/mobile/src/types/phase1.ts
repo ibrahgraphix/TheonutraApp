@@ -49,6 +49,7 @@ export interface Transaction {
 
 export interface WalletBalance {
   balance: number;
+  currency: string;
   recentTransactions: Transaction[];
 }
 

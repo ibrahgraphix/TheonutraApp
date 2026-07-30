@@ -37,9 +37,6 @@ import { useAuthStore } from '../../store/authStore';
 
 type Tab = 'overview' | 'transactions' | 'withdrawals';
 
-// Backend has no per-wallet currency field yet — using a single default.
-const DEFAULT_CURRENCY = 'USD';
-
 // Per THEONUTRA Compensation Plan V1 §6 — mirror these if wallet_settings
 // ever changes; a dedicated GET /api/wallet/settings endpoint would be the
 // next step to make these live instead of hardcoded.
@@ -124,7 +121,7 @@ export function WalletScreen() {
       return;
     }
     if (amount < MIN_WITHDRAWAL) {
-      Alert.alert('Error', `Minimum withdrawal is ${formatCurrency(MIN_WITHDRAWAL, DEFAULT_CURRENCY)}.`);
+      Alert.alert('Error', `Minimum withdrawal is ${formatCurrency(MIN_WITHDRAWAL, wallet?.currency || 'TZS')}.`);
       return;
     }
     if (!payoutDetails.trim()) {
@@ -173,7 +170,7 @@ export function WalletScreen() {
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Available Balance</Text>
         <Text style={styles.balanceAmount}>
-          {wallet ? formatCurrency(wallet.balance, DEFAULT_CURRENCY) : '—'}
+          {wallet ? formatCurrency(wallet.balance, wallet?.currency || 'TZS') : '—'}
         </Text>
         <Button
           onPress={handleWithdraw}
@@ -222,7 +219,7 @@ export function WalletScreen() {
                     ]}
                   >
                     {tx.type === 'credit' ? '+' : '-'}
-                    {formatCurrency(tx.amount, DEFAULT_CURRENCY)}
+                    {formatCurrency(tx.amount, wallet?.currency || 'TZS')}
                   </Text>
                 }
               />
@@ -253,7 +250,7 @@ export function WalletScreen() {
                   ]}
                 >
                   {tx.type === 'credit' ? '+' : '-'}
-                  {formatCurrency(tx.amount, DEFAULT_CURRENCY)}
+                  {formatCurrency(tx.amount, wallet?.currency || 'TZS')}
                 </Text>
               }
             />
@@ -270,7 +267,7 @@ export function WalletScreen() {
           renderItem={({ item: wd }) => (
             <ListItem
               key={wd.id}
-              title={formatCurrency(wd.amount, DEFAULT_CURRENCY)}
+              title={formatCurrency(wd.amount, wallet?.currency || 'TZS')}
               subtitle={`${formatDate(wd.created_at)} · ${wd.method.replace('_', ' ')}`}
               right={<Badge label={wd.status} variant={statusVariant(wd.status)} />}
             />
@@ -283,7 +280,7 @@ export function WalletScreen() {
           <SafeAreaView style={styles.modalCard}>
             <Text style={styles.modalTitle}>Request Withdrawal</Text>
             <Text style={styles.modalHint}>
-              Minimum {formatCurrency(MIN_WITHDRAWAL, DEFAULT_CURRENCY)} · {WITHDRAWAL_FEE_PCT}% withdrawal fee applies
+              Minimum {formatCurrency(MIN_WITHDRAWAL, wallet?.currency || 'TZS')} · {WITHDRAWAL_FEE_PCT}% withdrawal fee applies
             </Text>
             <View style={styles.methodRow}>
               {(['bank', 'mobile_money'] as WithdrawalMethod[]).map((m) => (
@@ -316,8 +313,8 @@ export function WalletScreen() {
             />
             {parsedAmount > 0 ? (
               <View style={styles.feeBreakdown}>
-                <Text style={styles.feeLine}>Fee ({WITHDRAWAL_FEE_PCT}%): {formatCurrency(feeAmount, DEFAULT_CURRENCY)}</Text>
-                <Text style={styles.feeLineNet}>You'll receive: {formatCurrency(netAmount, DEFAULT_CURRENCY)}</Text>
+                <Text style={styles.feeLine}>Fee ({WITHDRAWAL_FEE_PCT}%): {formatCurrency(feeAmount, wallet?.currency || 'TZS')}</Text>
+                <Text style={styles.feeLineNet}>You'll receive: {formatCurrency(netAmount, wallet?.currency || 'TZS')}</Text>
               </View>
             ) : null}
             <TextInput

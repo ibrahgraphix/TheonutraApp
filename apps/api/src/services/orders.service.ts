@@ -26,6 +26,13 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   items?: OrderItem[];
+  payment?: {
+    method: string;
+    reference?: string;
+    provider?: string;
+    phone?: string;
+    isConfirmed?: boolean;
+  };
 }
 
 /**
@@ -166,6 +173,7 @@ export async function createOrder(
       unitPrice: ri.unitPrice,
       subtotal: ri.quantity * ri.unitPrice,
     })),
+    payment: undefined, // No payment yet - submitted separately
   };
 }
 
@@ -189,6 +197,14 @@ export async function getOrderById(
         products (
           name
         )
+      ),
+      payments (
+        id,
+        method,
+        reference_no,
+        provider,
+        phone_number,
+        is_confirmed
       )
     `)
     .eq('id', id)
@@ -211,6 +227,16 @@ export async function getOrderById(
     subtotal: item.quantity * Number(item.unit_price),
   }));
 
+  // Map payment details if available
+  const payments = order.payments as any[] ?? [];
+  const payment = payments.length > 0 ? {
+    method: payments[0].method,
+    reference: payments[0].reference_no,
+    provider: payments[0].provider,
+    phone: payments[0].phone_number,
+    isConfirmed: payments[0].is_confirmed,
+  } : undefined;
+
   return {
     id: order.id,
     buyerId: order.buyer_id,
@@ -221,6 +247,7 @@ export async function getOrderById(
     createdAt: order.created_at,
     updatedAt: order.updated_at,
     items,
+    payment,
   };
 }
 
@@ -243,6 +270,14 @@ export async function listMyOrders(buyerId: string, page: number = 1, limit: num
         products (
           name
         )
+      ),
+      payments (
+        id,
+        method,
+        reference_no,
+        provider,
+        phone_number,
+        is_confirmed
       )
     `)
     .eq('buyer_id', buyerId)
@@ -263,6 +298,16 @@ export async function listMyOrders(buyerId: string, page: number = 1, limit: num
       subtotal: item.quantity * Number(item.unit_price),
     }));
 
+    // Map payment details if available
+    const payments = order.payments as any[] ?? [];
+    const payment = payments.length > 0 ? {
+      method: payments[0].method,
+      reference: payments[0].reference_no,
+      provider: payments[0].provider,
+      phone: payments[0].phone_number,
+      isConfirmed: payments[0].is_confirmed,
+    } : undefined;
+
     return {
       id: order.id,
       buyerId: order.buyer_id,
@@ -273,11 +318,12 @@ export async function listMyOrders(buyerId: string, page: number = 1, limit: num
       createdAt: order.created_at,
       updatedAt: order.updated_at,
       items,
+      payment,
     };
   });
 }
 
-export interface AwaitingPaymentOrder extends Order {
+export interface AwaitingPaymentOrder extends Omit<Order, 'buyerId'> {
   buyerName?: string;
   distributorId?: string;
 }

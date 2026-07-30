@@ -1,4 +1,7 @@
 export function formatCurrency(amount: number, currency: string) {
+  if (amount === undefined || amount === null) {
+    return `${currency} 0.00`;
+  }
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
