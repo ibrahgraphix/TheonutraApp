@@ -7,8 +7,8 @@ export const BankPaymentSchema = z.object({
 
 export const MobileMoneyPaymentSchema = z.object({
   orderId:     z.string().uuid('orderId must be a valid UUID'),
-  provider:    z.enum(['mpesa', 'tigopesa', 'airtelmoney'], {
-    errorMap: () => ({ message: 'provider must be mpesa, tigopesa, or airtelmoney' }),
+  provider:    z.enum(['mpesa', 'tigopesa', 'airtelmoney'] as const, {
+    message: 'provider must be mpesa, tigopesa, or airtelmoney',
   }),
   phoneNumber: z.string().min(1, 'phoneNumber is required'),
 });
