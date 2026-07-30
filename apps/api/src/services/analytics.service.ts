@@ -2,17 +2,15 @@ import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { listMyOrders } from './orders.service.js';
 import { getCommissionsSummary } from './commissions.service.js';
-import { convertToUSD } from '../config/exchangeRates.js';
+import { convertToUSD, convertFromUSD } from '../config/exchangeRates.js';
 
 export interface MonthlyOverview {
   month: string;
+  label: string;
   personalSales: number;
   teamSales: number;
   bonusEarned: number;
   currency: string;
-  personalSalesUSD: number;
-  teamSalesUSD: number;
-  bonusEarnedUSD: number;
 }
 
 /**
@@ -35,7 +33,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   // Get distributor's country to determine currency
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('countries!inner(currency_code)')
+    .select('country_id, countries!inner(currency_code)')
     .eq('id', distributorId)
     .single();
 
@@ -48,7 +46,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   // 1. Personal sales this month
   const { data: personalSalesData, error: personalError } = await supabase
     .from('sales')
-    .select('amount')
+    .select('amount, currency_code')
     .eq('distributor_id', distributorId)
     .gte('sale_date', startDate.toISOString().slice(0, 10))
     .lt('sale_date', endDate.toISOString().slice(0, 10));
@@ -57,7 +55,14 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
     throw new ApiError(500, `Failed to fetch personal sales: ${personalError.message}`);
   }
 
-  const personalSales = personalSalesData?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+  // Convert personal sales to user's currency
+  const personalSales = (personalSalesData ?? []).reduce((sum, sale) => {
+    const saleAmount = Number(sale.amount);
+    const saleCurrency = sale.currency_code || 'USD';
+    const amountInUSD = convertToUSD(saleAmount, saleCurrency);
+    const amountInUserCurrency = convertFromUSD(amountInUSD, currency);
+    return sum + amountInUserCurrency;
+  }, 0);
 
   // 2. Team sales this month (using downline_tree view to get member IDs, then aggregate sales)
   const { data: downlineRows, error: downlineError } = await supabase
@@ -75,7 +80,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   if (memberIds.length > 0) {
     const { data: teamSalesData, error: teamSalesError } = await supabase
       .from('sales')
-      .select('amount')
+      .select('amount, currency_code')
       .in('distributor_id', memberIds)
       .gte('sale_date', startDate.toISOString().slice(0, 10))
       .lt('sale_date', endDate.toISOString().slice(0, 10));
@@ -84,26 +89,29 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
       throw new ApiError(500, `Failed to fetch team sales: ${teamSalesError.message}`);
     }
 
-    teamSales = teamSalesData?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+    // Convert all team sales to user's currency
+    teamSales = (teamSalesData ?? []).reduce((sum, sale) => {
+      const saleAmount = Number(sale.amount);
+      const saleCurrency = sale.currency_code || 'USD';
+      const amountInUSD = convertToUSD(saleAmount, saleCurrency);
+      const amountInUserCurrency = convertFromUSD(amountInUSD, currency);
+      return sum + amountInUserCurrency;
+    }, 0);
   }
 
   // 3. Bonus earned this month (reuse commissions service)
   const commissionSummary = await getCommissionsSummary(distributorId, targetMonth);
 
-  // Convert to USD for dashboard display
-  const personalSalesUSD = convertToUSD(personalSales, currency);
-  const teamSalesUSD = convertToUSD(teamSales, currency);
-  const bonusEarnedUSD = convertToUSD(commissionSummary.total_commission, currency);
+  // Format month label
+  const monthLabel = new Date(`${targetMonth}-01`).toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return {
     month: targetMonth,
+    label: monthLabel,
     personalSales,
     teamSales,
     bonusEarned: commissionSummary.total_commission,
     currency,
-    personalSalesUSD,
-    teamSalesUSD,
-    bonusEarnedUSD,
   };
 }
 

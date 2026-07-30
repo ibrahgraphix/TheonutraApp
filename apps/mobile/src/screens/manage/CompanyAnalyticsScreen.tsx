@@ -63,8 +63,8 @@ export function CompanyAnalyticsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.statsGrid}>
           <StatCard
-            label="Total Sales"
-            value={formatCurrency(overview.totalSales, overview.currency)}
+            label="Total Sales (USD)"
+            value={formatCurrency(overview.totalSalesUSD, 'USD')}
           />
           <StatCard
             accent="secondary"
@@ -87,7 +87,7 @@ export function CompanyAnalyticsScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Country Performance</Text>
+        <Text style={styles.sectionTitle}>Country Performance (USD)</Text>
         {countries.map((c) => (
           <Card key={c.countryId} style={styles.row}>
             <View style={styles.rowLeft}>
@@ -96,11 +96,11 @@ export function CompanyAnalyticsScreen() {
                 {c.distributorCount} distributor{c.distributorCount !== 1 ? 's' : ''} · {c.orderCount} order{c.orderCount !== 1 ? 's' : ''}
               </Text>
             </View>
-            <Text style={styles.rowValue}>{formatCurrency(c.totalSales, overview.currency)}</Text>
+            <Text style={styles.rowValue}>{formatCurrency(c.totalSalesUSD, 'USD')}</Text>
           </Card>
         ))}
 
-        <Text style={styles.sectionTitle}>Top Products by Revenue</Text>
+        <Text style={styles.sectionTitle}>Top Products by Revenue (USD)</Text>
         {products.length === 0 ? (
           <Text style={styles.empty}>No sales data yet.</Text>
         ) : (
@@ -112,7 +112,7 @@ export function CompanyAnalyticsScreen() {
                 </Text>
                 <Text style={styles.rowMeta}>{p.unitsSold} unit{p.unitsSold !== 1 ? 's' : ''} sold</Text>
               </View>
-              <Text style={styles.rowValue}>{formatCurrency(p.totalRevenue, overview.currency)}</Text>
+              <Text style={styles.rowValue}>{formatCurrency(p.totalRevenueUSD, 'USD')}</Text>
             </Card>
           ))
         )}

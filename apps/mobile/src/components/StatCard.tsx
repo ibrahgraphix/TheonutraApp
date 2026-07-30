@@ -50,7 +50,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   value: {
-    ...typography.h3,
+    ...typography.body,
     color: colors.text,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

@@ -7,7 +7,7 @@ import { Avatar } from './Avatar';
 
 interface TeamMemberRowProps {
   member: TeamMember;
-  currency: string;
+  currency?: string;
   depth?: number;
   expanded?: boolean;
   onToggle?: () => void;
@@ -38,6 +38,9 @@ export function TeamMemberRow({
   const rankColor = member.activeStatusRankName
     ? (RANK_COLORS[member.activeStatusRankName] ?? colors.primary)
     : undefined;
+
+  // Always use the member's own currency from the backend
+  const memberCurrency = member.distributor.currencyCode || 'USD';
 
   return (
     <View style={[styles.wrapper, { marginLeft: depth * spacing.lg }]}>
@@ -81,7 +84,7 @@ export function TeamMemberRow({
             {formatDate(member.distributor.joinDate)}
           </Text>
           <Text style={styles.sales}>
-            Personal sales: {formatCurrency(member.personalSales, currency)}
+            Personal sales: {formatCurrency(member.personalSales, memberCurrency)}
           </Text>
         </View>
       </Pressable>

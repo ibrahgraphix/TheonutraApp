@@ -230,7 +230,7 @@ export function AccountScreen() {
         <View style={styles.quickLinks}>
           <QuickLink
             icon="💰"
-            label={wallet ? formatCurrency(wallet.balance, DEFAULT_CURRENCY) : 'Wallet'}
+            label={wallet ? formatCurrency(wallet.balance, wallet.currency || DEFAULT_CURRENCY) : 'Wallet'}
             onPress={() => navigation.navigate('Wallet')}
           />
           <QuickLink

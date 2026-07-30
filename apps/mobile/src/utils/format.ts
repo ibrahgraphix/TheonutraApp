@@ -2,14 +2,30 @@ export function formatCurrency(amount: number, currency: string) {
   if (amount === undefined || amount === null) {
     return `${currency} 0.00`;
   }
+  
+  // Handle custom currency codes that might not be recognized by Intl
+  const currencyMap: Record<string, string> = {
+    'TZS': 'TZS', // Tanzanian Shilling
+    'NGN': 'NGN', // Nigerian Naira
+    'KES': 'KES', // Kenyan Shilling
+    'GHS': 'GHS', // Ghanaian Cedi
+    'USD': 'USD', // US Dollar
+  };
+  
+  const mappedCurrency = currencyMap[currency] || currency;
+  
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency,
-      maximumFractionDigits: currency === 'NGN' || currency === 'KES' ? 0 : 2,
+      currency: mappedCurrency,
+      maximumFractionDigits: currency === 'NGN' || currency === 'KES' || currency === 'TZS' ? 0 : 2,
     }).format(amount);
   } catch {
-    return `${currency} ${amount.toFixed(2)}`;
+    // Fallback for unsupported currency codes
+    const formattedAmount = new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: currency === 'NGN' || currency === 'KES' || currency === 'TZS' ? 0 : 2,
+    }).format(amount);
+    return `${currency} ${formattedAmount}`;
   }
 }
 
@@ -46,7 +62,10 @@ export function getCoverStyle(imageUrl?: string) {
 }
 
 export function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
+  if (!iso) return 'Invalid Date';
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return 'Invalid Date';
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

@@ -64,7 +64,7 @@ export function ManageWithdrawalsScreen() {
   const handleApprove = (req: WithdrawalRequest) => {
     Alert.alert(
       'Approve Withdrawal',
-      `Approve ${formatCurrency(req.amount, 'USD')} for ${req.profiles?.full_name ?? req.distributor_id}?`,
+      `Approve ${formatCurrency(req.amount, req.currencyCode || 'USD')} for ${req.profiles?.full_name ?? req.distributor_id}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -111,7 +111,7 @@ export function ManageWithdrawalsScreen() {
   const handleMarkPaid = (req: WithdrawalRequest) => {
     Alert.alert(
       'Mark as Paid',
-      `Confirm you have transferred ${formatCurrency(req.amount, 'USD')} to ${req.profiles?.full_name ?? req.distributor_id}?`,
+      `Confirm you have transferred ${formatCurrency(req.amount, req.currencyCode || 'USD')} to ${req.profiles?.full_name ?? req.distributor_id}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -176,7 +176,7 @@ export function ManageWithdrawalsScreen() {
                 <Badge label={item.status} variant={STATUS_VARIANT[item.status] ?? 'neutral'} />
               </View>
 
-              <Text style={styles.amount}>{formatCurrency(item.amount, 'USD')}</Text>
+              <Text style={styles.amount}>{formatCurrency(item.amount, item.currencyCode || 'USD')}</Text>
 
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{METHOD_LABEL[item.method] ?? item.method}</Text>

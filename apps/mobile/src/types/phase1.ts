@@ -64,6 +64,7 @@ export interface WithdrawalRequest {
   reviewed_by?: string;
   reviewed_at?: string;
   notes?: string;
+  currencyCode?: string;
   profiles?: {
     full_name: string;
     distributor_id: string;

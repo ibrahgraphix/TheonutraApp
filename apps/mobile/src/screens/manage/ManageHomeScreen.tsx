@@ -81,11 +81,15 @@ export function ManageHomeScreen() {
         </View>
         <View style={styles.grid}>
           <ShortcutButton
+            icon="💵"
+            label="Withdrawals"
+            onPress={() => navigation.navigate('ManageWithdrawals')}
+          />
+          <ShortcutButton
             icon="💎"
             label="OPB Bonuses"
             onPress={() => navigation.navigate('ManageOPB')}
           />
-          <View style={styles.placeholder} />
         </View>
 
         <Card style={styles.tip}>

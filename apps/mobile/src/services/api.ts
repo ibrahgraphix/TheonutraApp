@@ -161,10 +161,10 @@ export async function getDashboardStats(
 
   const stats = await response.json();
   return {
-    personalSales: stats.personalSalesUSD ?? stats.personalSales ?? 0,
-    teamSales: stats.teamSalesUSD ?? stats.teamSales ?? 0,
-    bonusEarned: stats.bonusEarnedUSD ?? stats.bonusEarned ?? 0,
-    currency: 'USD', // Dashboard always shows in USD
+    personalSales: stats.personalSales ?? 0,
+    teamSales: stats.teamSales ?? 0,
+    bonusEarned: stats.bonusEarned ?? 0,
+    currency: stats.currency || 'USD',
     period: stats.period ?? new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
   };
 }
@@ -225,6 +225,7 @@ function buildTeamTree(flatTeam: any[]): TeamMember[] {
         role: 'distributor' as const,
         country: member.countryId,
         countryId: member.countryId,
+        currencyCode: member.currencyCode || 'USD',
         referredBy: member.referredBy,
         joinDate: member.createdAt ?? '',
       },
@@ -771,11 +772,11 @@ export async function getMonthlyAnalysis(
   const data = await response.json();
   return {
     month: data.month,
-    label: data.label,
-    personalSales: data.personalSalesUSD ?? data.personalSales ?? 0,
-    teamSales: data.teamSalesUSD ?? data.teamSales ?? 0,
-    bonusEarned: data.bonusEarnedUSD ?? data.bonusEarned ?? 0,
-    currency: 'USD', // Dashboard always shows in USD
+    label: data.label || new Date(`${data.month}-01`).toLocaleString('default', { month: 'long', year: 'numeric' }),
+    personalSales: data.personalSales ?? 0,
+    teamSales: data.teamSales ?? 0,
+    bonusEarned: data.bonusEarned ?? 0,
+    currency: data.currency || 'USD',
   };
 }
 
@@ -2387,6 +2388,7 @@ export async function uploadProductImage(localUri: string): Promise<string> {
 
 export interface CompanyOverview {
   totalSales: number;
+  totalSalesUSD: number;
   totalRevenue: number;
   activeMembers: number;
   inactiveMembers: number;
@@ -2400,7 +2402,9 @@ export interface CountryPerformance {
   countryName: string;
   distributorCount: number;
   totalSales: number;
+  totalSalesUSD: number;
   orderCount: number;
+  currencyCode: string;
 }
 
 export interface ProductPerformance {
@@ -2408,6 +2412,7 @@ export interface ProductPerformance {
   productName: string;
   unitsSold: number;
   totalRevenue: number;
+  totalRevenueUSD: number;
 }
 
 export async function getCompanyOverview(): Promise<CompanyOverview> {

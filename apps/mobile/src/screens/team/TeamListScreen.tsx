@@ -13,7 +13,7 @@ import {
 
 import { ShopHeader, TeamMemberRow } from '../../components';
 import type { TeamStackParamList } from '../../navigation/teamTypes';
-import { getCurrencyForCountry, getTeam } from '../../services/api';
+import { getTeam } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import type { TeamMember } from '../../types';
 import { colors, spacing, typography } from '../../theme';
@@ -22,14 +22,12 @@ type NavigationProp = NativeStackNavigationProp<TeamStackParamList, 'TeamList'>;
 
 function TeamTree({
   members,
-  currency,
   expandedIds,
   onToggle,
   onPressMember,
   depth = 0,
 }: {
   members: TeamMember[];
-  currency: string;
   expandedIds: Set<string>;
   onToggle: (id: string) => void;
   onPressMember: (id: string) => void;
@@ -43,7 +41,6 @@ function TeamTree({
         return (
           <View key={id}>
             <TeamMemberRow
-              currency={currency}
               depth={depth}
               expanded={expanded}
               member={member}
@@ -52,7 +49,6 @@ function TeamTree({
             />
             {expanded && member.children.length > 0 ? (
               <TeamTree
-                currency={currency}
                 depth={depth + 1}
                 expandedIds={expandedIds}
                 members={member.children}
@@ -74,8 +70,6 @@ export function TeamListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const currency = distributor ? getCurrencyForCountry(distributor.country) : 'USD';
 
   const load = useCallback(async () => {
     if (!distributor) return;
@@ -123,7 +117,6 @@ export function TeamListScreen() {
           <Text style={styles.empty}>No team members yet. Start recruiting to build your network.</Text>
         ) : (
           <TeamTree
-            currency={currency}
             expandedIds={expandedIds}
             members={team}
             onPressMember={(id) => navigation.navigate('TeamMember', { distributorId: id })}

@@ -1,8 +1,10 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import { convertToUSD } from '../config/exchangeRates.js';
 
 export interface CompanyOverview {
   totalSales: number;
+  totalSalesUSD: number;
   totalRevenue: number;
   activeMembers: number;
   inactiveMembers: number;
@@ -16,7 +18,9 @@ export interface CountryPerformance {
   countryName: string;
   distributorCount: number;
   totalSales: number;
+  totalSalesUSD: number;
   orderCount: number;
+  currencyCode: string;
 }
 
 export interface ProductPerformance {
@@ -24,6 +28,7 @@ export interface ProductPerformance {
   productName: string;
   unitsSold: number;
   totalRevenue: number;
+  totalRevenueUSD: number;
 }
 
 /**
@@ -45,8 +50,15 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
     throw new ApiError(500, `Failed to fetch orders: ${ordersError.message}`);
   }
 
-  const totalSales = (paidOrders ?? []).reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const currency = paidOrders?.[0]?.currency_code ?? 'USD';
+  // Properly convert all sales to USD for accurate company-wide totals
+  let totalSales = 0;
+  let totalSalesUSD = 0;
+  for (const order of paidOrders ?? []) {
+    const amount = Number(order.total_amount);
+    const currency = order.currency_code || 'USD';
+    totalSales += amount;
+    totalSalesUSD += convertToUSD(amount, currency);
+  }
 
   const { count: activeCount, error: activeError } = await supabase
     .from('profiles')
@@ -89,12 +101,13 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
 
   return {
     totalSales,
+    totalSalesUSD,
     totalRevenue: totalSales,
     activeMembers: activeCount ?? 0,
     inactiveMembers: inactiveCount ?? 0,
     newRegistrationsThisMonth: newRegs ?? 0,
     totalDistributors: totalDist ?? 0,
-    currency,
+    currency: 'USD',
   };
 }
 
@@ -104,7 +117,7 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
 export async function getCountryPerformance(): Promise<CountryPerformance[]> {
   const { data: countries, error: countriesError } = await supabase
     .from('countries')
-    .select('id, name');
+    .select('id, name, currency_code');
 
   if (countriesError) {
     throw new ApiError(500, `Failed to fetch countries: ${countriesError.message}`);
@@ -121,7 +134,7 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
 
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('country_id, total_amount, status');
+    .select('country_id, total_amount, status, currency_code');
 
   if (ordersError) {
     throw new ApiError(500, `Failed to fetch orders: ${ordersError.message}`);
@@ -134,22 +147,31 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
     }
   }
 
-  const salesByCountry = new Map<string, { total: number; count: number }>();
+  // Properly convert each country's sales to USD for comparison
+  const salesByCountry = new Map<string, { total: number; totalUSD: number; count: number }>();
   for (const o of orders ?? []) {
     if (o.status !== 'paid') continue;
-    const existing = salesByCountry.get(o.country_id) ?? { total: 0, count: 0 };
-    existing.total += Number(o.total_amount);
+    const existing = salesByCountry.get(o.country_id) ?? { total: 0, totalUSD: 0, count: 0 };
+    const amount = Number(o.total_amount);
+    const orderCurrency = o.currency_code || 'USD';
+    existing.total += amount;
+    existing.totalUSD += convertToUSD(amount, orderCurrency);
     existing.count += 1;
     salesByCountry.set(o.country_id, existing);
   }
 
-  return (countries ?? []).map((c) => ({
-    countryId: c.id,
-    countryName: c.name,
-    distributorCount: distributorCounts.get(c.id) ?? 0,
-    totalSales: salesByCountry.get(c.id)?.total ?? 0,
-    orderCount: salesByCountry.get(c.id)?.count ?? 0,
-  }));
+  return (countries ?? []).map((c) => {
+    const salesData = salesByCountry.get(c.id);
+    return {
+      countryId: c.id,
+      countryName: c.name,
+      distributorCount: distributorCounts.get(c.id) ?? 0,
+      totalSales: salesData?.total ?? 0,
+      totalSalesUSD: salesData?.totalUSD ?? 0,
+      orderCount: salesData?.count ?? 0,
+      currencyCode: c.currency_code || 'USD',
+    };
+  });
 }
 
 /**
@@ -164,7 +186,7 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
       unit_price,
       product_id,
       products ( name ),
-      orders!inner ( status )
+      orders!inner ( status, currency_code )
     `)
     .eq('orders.status', 'paid');
 
@@ -172,17 +194,21 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
     throw new ApiError(500, `Failed to fetch product performance: ${error.message}`);
   }
 
-  const productMap = new Map<string, { name: string; units: number; revenue: number }>();
+  // Properly convert each product's revenue to USD for comparison
+  const productMap = new Map<string, { name: string; units: number; revenue: number; revenueUSD: number }>();
 
   for (const item of orderItems ?? []) {
     const productId = item.product_id as string;
     const productName = (item.products as any)?.name ?? 'Unknown Product';
     const quantity = Number(item.quantity);
     const revenue = quantity * Number(item.unit_price);
+    const orderCurrency = (item.orders as any)?.currency_code || 'USD';
+    const revenueUSD = convertToUSD(revenue, orderCurrency);
 
-    const existing = productMap.get(productId) ?? { name: productName, units: 0, revenue: 0 };
+    const existing = productMap.get(productId) ?? { name: productName, units: 0, revenue: 0, revenueUSD: 0 };
     existing.units += quantity;
     existing.revenue += revenue;
+    existing.revenueUSD += revenueUSD;
     productMap.set(productId, existing);
   }
 
@@ -192,6 +218,7 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
       productName: data.name,
       unitsSold: data.units,
       totalRevenue: data.revenue,
+      totalRevenueUSD: data.revenueUSD,
     }))
-    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+    .sort((a, b) => b.totalRevenueUSD - a.totalRevenueUSD);
 }

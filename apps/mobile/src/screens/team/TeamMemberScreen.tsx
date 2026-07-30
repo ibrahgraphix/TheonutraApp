@@ -12,7 +12,7 @@ import {
 
 import { Avatar, Badge, ShopHeader, TeamMemberRow } from '../../components';
 import type { TeamStackParamList } from '../../navigation/teamTypes';
-import { getCurrencyForCountry, getDistributorById, getTeam } from '../../services/api';
+import { getDistributorById, getTeam } from '../../services/api';
 import type { Distributor, TeamMember } from '../../types';
 import { formatDate } from '../../utils/format';
 import { colors, spacing, typography } from '../../theme';
@@ -38,8 +38,6 @@ export function TeamMemberScreen() {
       })
       .finally(() => setLoading(false));
   }, [route.params.distributorId]);
-
-  const currency = member ? getCurrencyForCountry(member.country) : 'USD';
 
   return (
     <View style={styles.container}>
@@ -70,7 +68,6 @@ export function TeamMemberScreen() {
             subteam.map((m) => (
               <TeamMemberRow
                 key={m.distributor.id}
-                currency={currency}
                 member={m}
                 onPress={() =>
                   navigation.push('TeamMember', { distributorId: m.distributor.id })

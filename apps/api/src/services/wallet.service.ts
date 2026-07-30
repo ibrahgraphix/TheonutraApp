@@ -28,10 +28,12 @@ export interface WithdrawalRequest {
   method: 'bank' | 'mobile_money';
   payout_details: string;
   status: 'pending' | 'approved' | 'rejected' | 'paid';
-  requested_at: string;
+  requested_at: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   notes: string | null;
+  created_at: string | null;
+  currencyCode?: string;
   profiles?: {
     full_name: string;
     distributor_id: string;
@@ -212,7 +214,7 @@ export async function requestWithdrawal(
 export async function getMyWithdrawals(distributorId: string): Promise<WithdrawalRequest[]> {
   const { data, error } = await supabase
     .from('withdrawal_requests')
-    .select('*')
+    .select('*, profiles!inner(countries!inner(currency_code))')
     .eq('distributor_id', distributorId)
     .order('requested_at', { ascending: false });
 
@@ -223,6 +225,10 @@ export async function getMyWithdrawals(distributorId: string): Promise<Withdrawa
   return (data ?? []).map(req => ({
     ...req,
     amount: Number(req.amount),
+    currencyCode: (req.profiles as any)?.countries?.currency_code || 'USD',
+    created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
+    requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
+    reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null, // Format date properly
   }));
 }
 
@@ -236,7 +242,8 @@ export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequ
       *,
       profiles!withdrawal_requests_distributor_id_fkey (
         full_name,
-        distributor_id
+        distributor_id,
+        countries!inner(currency_code)
       )
     `)
     .order('requested_at', { ascending: false });
@@ -254,6 +261,10 @@ export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequ
   return (data ?? []).map((req: any) => ({
     ...req,
     amount: Number(req.amount),
+    created_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
+    requested_at: req.requested_at ? new Date(req.requested_at).toISOString() : null, // Format date properly
+    reviewed_at: req.reviewed_at ? new Date(req.reviewed_at).toISOString() : null, // Format date properly
+    currencyCode: (req.profiles as any)?.countries?.currency_code || 'USD',
     profiles: req.profiles ? {
       full_name: req.profiles.full_name,
       distributor_id: req.profiles.distributor_id,

@@ -143,12 +143,25 @@ function resolveActiveStatusRank(
 export async function getDistributorCompensationSnapshot(
   distributorId: string,
   month?: string,
-): Promise<{ ppv: number; cgv: number; activeStatusRank: ActiveStatusRank }> {
+): Promise<{ ppv: number; cgv: number; activeStatusRank: ActiveStatusRank; currency: string }> {
+  // Get distributor's country to determine currency
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('countries!inner(currency_code)')
+    .eq('id', distributorId)
+    .single();
+
+  if (profileError || !profile) {
+    throw new ApiError(404, 'Distributor profile not found');
+  }
+
+  const currency = (profile.countries as any)?.currency_code || 'USD';
+
   const ranks = await listActiveStatusRanks();
   const ppv = await calculatePPV(distributorId, month);
   const cgv = await calculateCGV(distributorId, month);
   const activeStatusRank = resolveActiveStatusRank(ranks, ppv, cgv);
-  return { ppv, cgv, activeStatusRank };
+  return { ppv, cgv, activeStatusRank, currency };
 }
 
 async function countQualifiedDownlineLeaders(distributorId: string): Promise<number> {

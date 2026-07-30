@@ -8,6 +8,7 @@ export interface Distributor {
   role: DistributorRole;
   country: string;
   countryId?: string;
+  currencyCode?: string;
   referredBy: string | null;
   joinDate: string;
   avatarUrl?: string;

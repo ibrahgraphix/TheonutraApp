@@ -17,6 +17,7 @@ export type ManageStackParamList = {
   ManageArticles: undefined;
   EditArticle: { articleId: string };
   PendingPayments: undefined;
+  ManageWithdrawals: undefined;
   ManageTraining: undefined;
   ManageTrainingMaterials: { categoryId: string; categoryName: string };
   ManageEvents: undefined;

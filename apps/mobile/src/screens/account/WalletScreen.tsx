@@ -267,7 +267,7 @@ export function WalletScreen() {
           renderItem={({ item: wd }) => (
             <ListItem
               key={wd.id}
-              title={formatCurrency(wd.amount, wallet?.currency || 'TZS')}
+              title={formatCurrency(wd.amount, wd.currencyCode || wallet?.currency || 'TZS')}
               subtitle={`${formatDate(wd.created_at)} · ${wd.method.replace('_', ' ')}`}
               right={<Badge label={wd.status} variant={statusVariant(wd.status)} />}
             />
