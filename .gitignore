@@ -6,6 +6,9 @@ apps/mobile/.expo
 apps/mobile/dist
 apps/mobile/web-build
 
+# API build output
+apps/api/dist
+
 # Env — .env.example IS tracked (safe to commit)
 .env
 .env.local
