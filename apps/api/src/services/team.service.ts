@@ -18,6 +18,18 @@ export interface TeamMember {
   leadershipRankName?: string | null;
 }
 
+interface ProfileExtra {
+  phoneNumber: string;
+  countryId: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface RankExtra {
+  activeStatus?: string;
+  leadership?: string | null;
+}
+
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 async function fetchTeam(
@@ -57,10 +69,7 @@ async function fetchTeam(
     throw new ApiError(500, `Failed to fetch team profiles: ${profileError.message}`);
   }
 
-  const profileMap = new Map
-    string,
-    { phoneNumber: string; countryId: string; isActive: boolean; createdAt: string }
-  >();
+  const profileMap = new Map<string, ProfileExtra>();
   for (const p of profiles ?? []) {
     profileMap.set(p.id as string, {
       phoneNumber: p.phone_number as string,
@@ -71,9 +80,6 @@ async function fetchTeam(
   }
 
   // ── 2.5. Bulk-fetch active status + leadership rank NAMES for the tree ────
-  // Two-step lookup (rank IDs on profiles → rank names) instead of an
-  // embedded join, since we don't need to guess the exact FK constraint name
-  // this way — works regardless of what Postgres auto-named the constraint.
   const { data: rankedProfiles, error: rankProfileError } = await supabase
     .from('profiles')
     .select('id, active_status_rank_id, leadership_rank_id')
@@ -118,7 +124,7 @@ async function fetchTeam(
     }
   }
 
-  const rankMap = new Map<string, { activeStatus?: string; leadership?: string | null }>();
+  const rankMap = new Map<string, RankExtra>();
   for (const rp of rankedProfiles ?? []) {
     rankMap.set(rp.id as string, {
       activeStatus: rp.active_status_rank_id
