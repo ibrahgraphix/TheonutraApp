@@ -83,6 +83,7 @@ export function AccountScreen() {
   const logout = useAuthStore((s) => s.logout);
   const updateDistributor = useAuthStore((s) => s.updateDistributor);
   const isStaff = distributor?.role === 'admin' || distributor?.role === 'company_staff';
+  const isAdmin = distributor?.role === 'admin';
 
   const [months, setMonths] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -265,54 +266,62 @@ export function AccountScreen() {
         </View>
 
         {/* Monthly Analysis */}
-        <Text style={styles.sectionTitle}>Monthly Analysis</Text>
-        {months.length > 0 ? (
-          <MonthPicker
-            labels={monthLabels}
-            months={months}
-            onSelect={setSelectedMonth}
-            selected={selectedMonth}
-          />
-        ) : null}
+        {!isAdmin && (
+          <>
+            <Text style={styles.sectionTitle}>Monthly Analysis</Text>
+            {months.length > 0 ? (
+              <MonthPicker
+                labels={monthLabels}
+                months={months}
+                onSelect={setSelectedMonth}
+                selected={selectedMonth}
+              />
+            ) : null}
 
-        {loading || !analysis ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
-          <Card>
-            <SimpleBarChart
-              data={[
-                { label: 'Personal', value: analysis.personalSales, color: colors.primary },
-                { label: 'Team', value: analysis.teamSales, color: colors.secondary },
-                { label: 'Bonus', value: analysis.bonusEarned, color: colors.primaryLight },
-              ]}
-              formatValue={(v) => formatCurrency(v, analysis.currency)}
-            />
-            <View style={styles.statsRow}>
-              <Stat label="Personal" value={formatCurrency(analysis.personalSales, analysis.currency)} />
-              <Stat label="Team" value={formatCurrency(analysis.teamSales, analysis.currency)} />
-              <Stat label="Bonus" value={formatCurrency(analysis.bonusEarned, analysis.currency)} />
-            </View>
-          </Card>
+            {loading || !analysis ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Card>
+                <SimpleBarChart
+                  data={[
+                    { label: 'Personal', value: analysis.personalSales, color: colors.primary },
+                    { label: 'Team', value: analysis.teamSales, color: colors.secondary },
+                    { label: 'Bonus', value: analysis.bonusEarned, color: colors.primaryLight },
+                  ]}
+                  formatValue={(v) => formatCurrency(v, analysis.currency)}
+                />
+                <View style={styles.statsRow}>
+                  <Stat label="Personal" value={formatCurrency(analysis.personalSales, analysis.currency)} />
+                  <Stat label="Team" value={formatCurrency(analysis.teamSales, analysis.currency)} />
+                  <Stat label="Bonus" value={formatCurrency(analysis.bonusEarned, analysis.currency)} />
+                </View>
+              </Card>
+            )}
+          </>
         )}
 
         {/* Order History */}
-        <Text style={styles.sectionTitle}>Order History</Text>
-        {orders.length === 0 ? (
-          <Text style={styles.empty}>No orders yet.</Text>
-        ) : (
-          orders.map((order) => (
-            <ListItem
-              key={order.id}
-              right={
-                <Badge
-                  label={formatOrderStatus(order.status)}
-                  variant={order.status === 'delivered' ? 'success' : 'neutral'}
+        {!isAdmin && (
+          <>
+            <Text style={styles.sectionTitle}>Order History</Text>
+            {orders.length === 0 ? (
+              <Text style={styles.empty}>No orders yet.</Text>
+            ) : (
+              orders.map((order) => (
+                <ListItem
+                  key={order.id}
+                  right={
+                    <Badge
+                      label={formatOrderStatus(order.status)}
+                      variant={order.status === 'delivered' ? 'success' : 'neutral'}
+                    />
+                  }
+                  subtitle={`${formatDate(order.createdAt)} · ${order.items.length} item(s)`}
+                  title={formatCurrency(order.total, order.currency)}
                 />
-              }
-              subtitle={`${formatDate(order.createdAt)} · ${order.items.length} item(s)`}
-              title={formatCurrency(order.total, order.currency)}
-            />
-          ))
+              ))
+            )}
+          </>
         )}
 
         {/* Settings */}
