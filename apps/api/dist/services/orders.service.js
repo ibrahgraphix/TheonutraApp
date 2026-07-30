@@ -1,3 +1,4 @@
+//orders.services
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 /**
@@ -212,6 +213,63 @@ export async function listMyOrders(buyerId, page = 1, limit = 20) {
             createdAt: order.created_at,
             updatedAt: order.updated_at,
             items,
+        };
+    });
+}
+/**
+ * Lists orders that are still 'pending' with NO payment record submitted at
+ * all — i.e. "Pay Later" orders where the distributor chose to settle
+ * outside the bank/mobile-money flow. Distinct from "Pending Payments",
+ * which lists orders that already have an unconfirmed payment reference.
+ * Staff only.
+ */
+export async function listAwaitingPaymentOrders() {
+    const { data: orders, error } = await supabase
+        .from('orders')
+        .select(`
+      *,
+      order_items (
+        id,
+        product_id,
+        quantity,
+        unit_price,
+        products ( name )
+      ),
+      payments ( id ),
+      profiles!orders_buyer_id_fkey (
+        full_name,
+        distributor_id
+      )
+    `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+    if (error) {
+        throw new ApiError(500, `Failed to list awaiting-payment orders: ${error.message}`);
+    }
+    return (orders ?? [])
+        .filter((order) => !order.payments || order.payments.length === 0)
+        .map((order) => {
+        const items = (order.order_items ?? []).map((item) => ({
+            id: item.id,
+            productId: item.product_id,
+            productName: item.products?.name || 'Unknown Product',
+            quantity: item.quantity,
+            unitPrice: Number(item.unit_price),
+            subtotal: item.quantity * Number(item.unit_price),
+        }));
+        const profile = order.profiles;
+        return {
+            id: order.id,
+            buyerId: order.buyer_id,
+            countryId: order.country_id,
+            status: order.status,
+            totalAmount: Number(order.total_amount),
+            currencyCode: order.currency_code,
+            createdAt: order.created_at,
+            updatedAt: order.updated_at,
+            items,
+            buyerName: profile?.full_name,
+            distributorId: profile?.distributor_id,
         };
     });
 }

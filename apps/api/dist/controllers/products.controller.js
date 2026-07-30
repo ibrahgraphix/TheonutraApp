@@ -74,6 +74,36 @@ export async function updateProductHandler(req, res, next) {
     }
 }
 /**
+ * GET /api/products/admin/list
+ * Lists ALL products with ALL country price rows. Staff only.
+ */
+export async function listProductsForAdminHandler(req, res, next) {
+    try {
+        const products = await productsService.listProductsForAdmin();
+        res.status(200).json(products);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * GET /api/products/:id/admin
+ * Fetches a single product with ALL country price rows. Staff only.
+ */
+export async function getProductForAdminHandler(req, res, next) {
+    try {
+        const id = req.params['id'];
+        if (!id) {
+            throw new ApiError(400, 'Product ID is required');
+        }
+        const product = await productsService.getProductForAdmin(id);
+        res.status(200).json(product);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
  * PATCH /api/products/:id/deactivate
  * Soft-deletes a product. Staff only.
  */
@@ -85,6 +115,23 @@ export async function deactivateProductHandler(req, res, next) {
         }
         await productsService.deactivateProduct(id);
         res.status(200).json({ message: 'Product deactivated successfully' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * PATCH /api/products/:id/activate
+ * Reactivates a product. Staff only.
+ */
+export async function activateProductHandler(req, res, next) {
+    try {
+        const id = req.params['id'];
+        if (!id) {
+            throw new ApiError(400, 'Product ID is required');
+        }
+        await productsService.activateProduct(id);
+        res.status(200).json({ message: 'Product activated successfully' });
     }
     catch (err) {
         next(err);

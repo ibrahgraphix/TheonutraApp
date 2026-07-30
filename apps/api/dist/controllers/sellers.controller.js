@@ -40,6 +40,20 @@ export async function getSellerByIdHandler(req, res, next) {
         next(err);
     }
 }
+export async function updateSellerHandler(req, res, next) {
+    try {
+        const id = req.params.id;
+        if (!id) {
+            throw new ApiError(400, 'Seller ID is required');
+        }
+        const input = req.body;
+        const seller = await sellersService.updateSeller(id, input);
+        res.status(200).json(seller);
+    }
+    catch (err) {
+        next(err);
+    }
+}
 export async function resetSellerPasswordHandler(req, res, next) {
     try {
         const id = req.params.id;
@@ -62,6 +76,32 @@ export async function deactivateSellerHandler(req, res, next) {
         }
         await sellersService.deactivateSeller(id);
         res.status(200).json({ message: 'Seller deactivated successfully' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function hardDeleteSellerHandler(req, res, next) {
+    try {
+        const id = req.params.id;
+        if (!id) {
+            throw new ApiError(400, 'Seller ID is required');
+        }
+        await sellersService.hardDeleteSeller(id);
+        res.status(200).json({ message: 'Seller permanently deleted' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function activateSellerHandler(req, res, next) {
+    try {
+        const id = req.params.id;
+        if (!id) {
+            throw new ApiError(400, 'Seller ID is required');
+        }
+        await sellersService.activateSeller(id);
+        res.status(200).json({ message: 'Seller activated successfully' });
     }
     catch (err) {
         next(err);

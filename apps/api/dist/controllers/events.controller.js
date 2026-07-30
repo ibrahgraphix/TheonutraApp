@@ -1,34 +1,38 @@
 import * as eventsService from '../services/events.service.js';
-import * as auditLogService from '../services/auditLog.service.js';
 import { ApiError } from '../middleware/error.middleware.js';
-export async function listEventsHandler(req, res, next) {
+export async function listUpcomingEventsHandler(req, res, next) {
     try {
-        if (!req.user) {
-            throw new ApiError(401, 'Unauthorized');
-        }
-        const pageParam = req.query['page'];
-        const limitParam = req.query['limit'];
-        const typeParam = req.query['type'];
-        const upcomingParam = req.query['upcoming'];
-        const pastParam = req.query['past'];
-        const dateFromParam = req.query['dateFrom'];
-        const dateToParam = req.query['dateTo'];
-        const page = parseInt(Array.isArray(pageParam) ? pageParam[0] : String(pageParam || '1'), 10) || 1;
-        const limit = parseInt(Array.isArray(limitParam) ? limitParam[0] : String(limitParam || '20'), 10) || 20;
-        const eventType = Array.isArray(typeParam) ? typeParam[0] : typeof typeParam === 'string' ? typeParam : undefined;
-        const upcoming = Array.isArray(upcomingParam) ? upcomingParam[0] === 'true' : upcomingParam === 'true';
-        const past = Array.isArray(pastParam) ? pastParam[0] === 'true' : pastParam === 'true';
-        const dateFrom = Array.isArray(dateFromParam) ? dateFromParam[0] : typeof dateFromParam === 'string' ? dateFromParam : undefined;
-        const dateTo = Array.isArray(dateToParam) ? dateToParam[0] : typeof dateToParam === 'string' ? dateToParam : undefined;
-        const filters = {
-            eventType: eventType,
-            dateFrom,
-            dateTo,
-        };
-        const result = upcoming || !past
-            ? await eventsService.listUpcomingEvents(filters, page, limit)
-            : await eventsService.listPastEvents(filters, page, limit);
-        res.status(200).json(result);
+        const eventType = req.query['type'];
+        const startFrom = req.query['start_from'];
+        const startTo = req.query['start_to'];
+        const events = await eventsService.listUpcomingEvents({
+            event_type: eventType,
+            start_from: startFrom,
+            start_to: startTo,
+        });
+        res.status(200).json(events);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+export async function listPastEventsHandler(req, res, next) {
+    try {
+        const events = await eventsService.listPastEvents();
+        res.status(200).json(events);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * GET /api/events/admin/list
+ * Lists ALL events including inactive ones. Staff only.
+ */
+export async function listAllEventsForAdminHandler(req, res, next) {
+    try {
+        const events = await eventsService.listAllEventsForAdmin();
+        res.status(200).json(events);
     }
     catch (err) {
         next(err);
@@ -36,11 +40,8 @@ export async function listEventsHandler(req, res, next) {
 }
 export async function getEventHandler(req, res, next) {
     try {
-        if (!req.user) {
-            throw new ApiError(401, 'Unauthorized');
-        }
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        if (!id) {
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
             throw new ApiError(400, 'Event ID is required');
         }
         const event = await eventsService.getEvent(id);
@@ -57,10 +58,6 @@ export async function createEventHandler(req, res, next) {
         }
         const input = req.body;
         const event = await eventsService.createEvent(req.user.id, input);
-        await auditLogService.logAction(req.user.id, 'event_created', 'event', event.id, {
-            title: event.title,
-            eventType: event.event_type,
-        });
         res.status(201).json(event);
     }
     catch (err) {
@@ -72,13 +69,12 @@ export async function updateEventHandler(req, res, next) {
         if (!req.user) {
             throw new ApiError(401, 'Unauthorized');
         }
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        if (!id) {
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
             throw new ApiError(400, 'Event ID is required');
         }
         const input = req.body;
-        const event = await eventsService.updateEvent(id, req.user.id, input);
-        await auditLogService.logAction(req.user.id, 'event_updated', 'event', event.id, { updatedFields: Object.keys(input) });
+        const event = await eventsService.updateEvent(id, input);
         res.status(200).json(event);
     }
     catch (err) {
@@ -90,13 +86,32 @@ export async function deactivateEventHandler(req, res, next) {
         if (!req.user) {
             throw new ApiError(401, 'Unauthorized');
         }
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        if (!id) {
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
             throw new ApiError(400, 'Event ID is required');
         }
         await eventsService.deactivateEvent(id);
-        await auditLogService.logAction(req.user.id, 'event_deactivated', 'event', id, null);
         res.status(200).json({ message: 'Event deactivated successfully' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * DELETE /api/events/:id/permanent
+ * Permanently deletes an event and its Cloudinary banner. Staff only.
+ */
+export async function hardDeleteEventHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
+            throw new ApiError(400, 'Event ID is required');
+        }
+        await eventsService.hardDeleteEvent(id);
+        res.status(200).json({ message: 'Event permanently deleted' });
     }
     catch (err) {
         next(err);

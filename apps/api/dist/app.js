@@ -26,8 +26,10 @@ import kycRouter from './routes/kyc.routes.js';
 import referralRouter from './routes/referral.routes.js';
 import notificationRouter from './routes/notification.routes.js';
 import trainingRouter from './routes/training.routes.js';
+import eventsRouter from './routes/events.routes.js';
 import loyaltyRouter from './routes/loyalty.routes.js';
 import auditLogRouter from './routes/auditLog.routes.js';
+import analyticsAdminRoutes from './routes/analyticsAdmin.routes.js';
 const app = express();
 // ── Core middleware ────────────────────────────────────────────────────────────
 app.use(cors());
@@ -59,9 +61,11 @@ app.use('/api/manual-bonuses', manualBonusRouter); // Step 16 — auth inside ro
 app.use('/api/kyc', kycRouter); // Step 17 — auth inside router
 app.use('/api/referral', referralRouter); // Step 18 — auth inside router
 app.use('/api/notifications', notificationRouter); // Step 19 — auth inside router
-app.use('/api/training', trainingRouter); // Step 20 — auth inside routerapp.use('/api/events',         eventsRouter);                   // Step 21 — events
-app.use('/api/loyalty', loyaltyRouter); // Step 21 — loyalty points
-app.use('/api/audit-log', auditLogRouter); // Step 21 — audit logs
+app.use('/api/training', trainingRouter); // Step 20 — auth inside router
+app.use('/api/events', eventsRouter); // Step 21 — auth inside router
+app.use('/api/loyalty', loyaltyRouter); // Step 22 — auth inside router
+app.use('/api/audit-log', auditLogRouter); // Step 22 — auth inside router
+app.use('/api/analytics/admin', analyticsAdminRoutes); //More steps
 // ── Centralised error handler (must be last) ──────────────────────────────────
 app.use(errorMiddleware);
 export default app;

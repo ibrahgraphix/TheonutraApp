@@ -143,4 +143,44 @@ export async function deactivateMaterialHandler(req, res, next) {
         next(err);
     }
 }
+/**
+ * DELETE /api/training/materials/:id/permanent
+ * Permanently deletes a training material AND its Cloudinary PDF (staff only).
+ */
+export async function hardDeleteMaterialHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const { id } = req.params;
+        if (!id || Array.isArray(id)) {
+            throw new ApiError(400, 'Material ID is required');
+        }
+        await trainingService.hardDeleteMaterial(id);
+        res.status(200).json({ message: 'Training material permanently deleted' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * DELETE /api/training/categories/:id
+ * Permanently deletes a category. Blocked if it still has materials. Staff only.
+ */
+export async function deleteCategoryHandler(req, res, next) {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, 'Unauthorized');
+        }
+        const { id } = req.params;
+        if (!id || Array.isArray(id)) {
+            throw new ApiError(400, 'Category ID is required');
+        }
+        await trainingService.deleteCategory(id);
+        res.status(200).json({ message: 'Training category deleted successfully' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
 //# sourceMappingURL=training.controller.js.map

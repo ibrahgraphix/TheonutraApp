@@ -85,11 +85,8 @@ export async function getTeamBonusRatesHandler(req, res, next) {
  */
 export async function updateTeamBonusRatesHandler(req, res, next) {
     try {
-        if (!req.user) {
-            throw new ApiError(401, 'Unauthorized');
-        }
         const input = req.body;
-        await teamBonusService.updateTeamBonusRates(input.rates, req.user.id);
+        await teamBonusService.updateTeamBonusRates(input.rates);
         res.status(200).json({ message: 'Team bonus rates updated successfully' });
     }
     catch (err) {

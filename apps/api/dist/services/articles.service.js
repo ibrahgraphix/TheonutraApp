@@ -1,6 +1,8 @@
+//articlesServices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 // Map database row to Article interface
 function mapArticle(row) {
     return {
@@ -85,6 +87,12 @@ export async function createArticle(input, authorId) {
         .single();
     if (error || !data) {
         throw new ApiError(500, `Failed to create article: ${error?.message}`);
+    }
+    try {
+        await notificationService.notifyNewArticle(data.id, data.title);
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send new article notification: ${notifError}`);
     }
     return mapArticle(data);
 }

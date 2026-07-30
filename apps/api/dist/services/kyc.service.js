@@ -1,3 +1,4 @@
+//kyc.services
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import * as notificationService from './notification.service.js';
@@ -86,9 +87,11 @@ export async function reviewKyc(staffId, submissionId, data) {
         throw new ApiError(500, `Failed to review KYC: ${updateError.message}`);
     }
     // The trigger will automatically update the denormalized kyc_status on profiles
-    await auditLogService.logAction(staffId, newStatus === 'approved' ? 'kyc_approved' : newStatus === 'rejected' ? 'kyc_rejected' : 'kyc_resubmission_requested', 'kyc_submission', submissionId, {
-        distributorId: submission.distributor_id,
-        decision: data.decision,
+    // Log audit action
+    await auditLogService.logAction(staffId, `kyc_${data.decision}`, 'kyc_submission', submissionId, {
+        distributor_id: submission.distributor_id,
+        previous_status: 'pending',
+        new_status: newStatus,
         reason: data.reason || null,
     });
     // Send notification

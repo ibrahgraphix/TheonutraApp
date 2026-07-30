@@ -36,7 +36,7 @@ export async function getProductByIdHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id        = req.params['id'];
+    const id        = req.params['id'] as string;
     const countryId = req.query['countryId'] as string | undefined;
 
     if (!id) {
@@ -85,7 +85,7 @@ export async function updateProductHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Product ID is required');
     }
@@ -125,7 +125,7 @@ export async function getProductForAdminHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Product ID is required');
     }
@@ -147,7 +147,7 @@ export async function deactivateProductHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Product ID is required');
     }
@@ -169,7 +169,7 @@ export async function activateProductHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Product ID is required');
     }

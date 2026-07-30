@@ -123,7 +123,7 @@ export async function approveWithdrawalHandler(
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
-    const { id } = req.params;
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Withdrawal ID is required');
     }
@@ -147,7 +147,7 @@ export async function rejectWithdrawalHandler(
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
-    const { id } = req.params;
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Withdrawal ID is required');
     }
@@ -172,7 +172,7 @@ export async function markWithdrawalPaidHandler(
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
-    const { id } = req.params;
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Withdrawal ID is required');
     }

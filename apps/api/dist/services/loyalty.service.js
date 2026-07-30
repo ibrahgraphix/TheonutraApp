@@ -1,78 +1,43 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+/**
+ * Credits loyalty points to a distributor.
+ * Uses an RPC function for atomic balance update and ledger entry.
+ */
 export async function creditPoints(distributorId, sourceType, sourceId, points) {
-    if (points <= 0) {
-        throw new ApiError(400, 'Points must be greater than zero');
-    }
-    const { error: insertError } = await supabase
-        .from('loyalty_balances')
-        .insert({ distributor_id: distributorId, balance: 0.00, updated_at: new Date().toISOString() })
-        .onConflict('distributor_id')
-        .ignore();
-    if (insertError) {
-        throw new ApiError(500, `Failed to ensure loyalty balance: ${insertError.message}`);
-    }
-    const { data: currentBalanceRow, error: currentBalanceError } = await supabase
-        .from('loyalty_balances')
-        .select('balance')
-        .eq('distributor_id', distributorId)
-        .single();
-    if (currentBalanceError || !currentBalanceRow) {
-        throw new ApiError(500, `Failed to load loyalty balance: ${currentBalanceError?.message}`);
-    }
-    const currentBalance = Number(currentBalanceRow.balance);
-    const newBalance = currentBalance + points;
-    const { error: balanceUpdateError } = await supabase
-        .from('loyalty_balances')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('distributor_id', distributorId);
-    if (balanceUpdateError) {
-        throw new ApiError(500, `Failed to update loyalty balance: ${balanceUpdateError.message}`);
-    }
-    const { error: txError } = await supabase
-        .from('loyalty_transactions')
-        .insert({
-        distributor_id: distributorId,
-        type: 'earn',
-        source_type: sourceType,
-        source_id: sourceId,
-        points,
-        balance_after: newBalance,
+    const { error } = await supabase.rpc('credit_loyalty_points', {
+        p_distributor_id: distributorId,
+        p_source_type: sourceType,
+        p_source_id: sourceId,
+        p_points: points,
     });
-    if (txError) {
-        throw new ApiError(500, `Failed to create loyalty transaction: ${txError.message}`);
+    if (error) {
+        throw new ApiError(500, `Failed to credit loyalty points: ${error.message}`);
     }
-    return {
-        distributor_id: distributorId,
-        balance: newBalance,
-        updated_at: new Date().toISOString(),
-    };
 }
+/**
+ * Gets the loyalty balance for a distributor.
+ */
 export async function getMyLoyaltyBalance(distributorId) {
-    const { error: insertError } = await supabase
-        .from('loyalty_balances')
-        .insert({ distributor_id: distributorId, balance: 0.00, updated_at: new Date().toISOString() })
-        .onConflict('distributor_id')
-        .ignore();
-    if (insertError) {
-        throw new ApiError(500, `Failed to ensure loyalty balance: ${insertError.message}`);
-    }
-    const { data, error } = await supabase
-        .from('loyalty_balances')
-        .select('*')
-        .eq('distributor_id', distributorId)
+    // Ensure loyalty_balance column exists and is initialized
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('loyalty_balance')
+        .eq('id', distributorId)
         .single();
-    if (error || !data) {
-        throw new ApiError(500, `Failed to fetch loyalty balance: ${error?.message}`);
+    if (profileError || !profile) {
+        throw new ApiError(404, 'Profile not found');
     }
     return {
-        distributor_id: data.distributor_id,
-        balance: Number(data.balance),
-        updated_at: data.updated_at,
+        balance: Number(profile.loyalty_balance || 0),
     };
 }
+/**
+ * Gets paginated loyalty transaction history for a distributor.
+ */
 export async function getMyLoyaltyHistory(distributorId, page = 1, limit = 20) {
     const offset = (page - 1) * limit;
+    // Get total count
     const { count, error: countError } = await supabase
         .from('loyalty_transactions')
         .select('*', { count: 'exact', head: true })
@@ -80,6 +45,7 @@ export async function getMyLoyaltyHistory(distributorId, page = 1, limit = 20) {
     if (countError) {
         throw new ApiError(500, `Failed to count loyalty transactions: ${countError.message}`);
     }
+    // Get paginated transactions
     const { data, error } = await supabase
         .from('loyalty_transactions')
         .select('*')
@@ -87,13 +53,13 @@ export async function getMyLoyaltyHistory(distributorId, page = 1, limit = 20) {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
     if (error) {
-        throw new ApiError(500, `Failed to fetch loyalty history: ${error.message}`);
+        throw new ApiError(500, `Failed to fetch loyalty transactions: ${error.message}`);
     }
     return {
-        transactions: (data ?? []).map((row) => ({
-            ...row,
-            points: Number(row.points),
-            balance_after: Number(row.balance_after),
+        transactions: (data ?? []).map(tx => ({
+            ...tx,
+            points: Number(tx.points),
+            balance_after: Number(tx.balance_after),
         })),
         total: count ?? 0,
         page,

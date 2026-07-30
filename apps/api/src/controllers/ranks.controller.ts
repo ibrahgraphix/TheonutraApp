@@ -55,7 +55,7 @@ export async function promoteDistributorHandler(
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const { distributorId } = req.params;
+    const distributorId = req.params['distributorId'] as string;
     if (!distributorId) {
       throw new ApiError(400, 'Distributor ID is required');
     }

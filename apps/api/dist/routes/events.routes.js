@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireStaff } from '../middleware/requireStaff.middleware.js';
-import { validate } from '../middleware/validate.middleware.js';
-import { CreateEventSchema, UpdateEventSchema } from '../schemas/events.schema.js';
-import { listEventsHandler, getEventHandler, createEventHandler, updateEventHandler, deactivateEventHandler, } from '../controllers/events.controller.js';
+import { listUpcomingEventsHandler, listPastEventsHandler, listAllEventsForAdminHandler, getEventHandler, createEventHandler, updateEventHandler, deactivateEventHandler, hardDeleteEventHandler, } from '../controllers/events.controller.js';
 const router = Router();
-router.get('/', authMiddleware, listEventsHandler);
-router.get('/:id', authMiddleware, getEventHandler);
-router.post('/', authMiddleware, requireStaff, validate(CreateEventSchema), createEventHandler);
-router.put('/:id', authMiddleware, requireStaff, validate(UpdateEventSchema), updateEventHandler);
-router.delete('/:id', authMiddleware, requireStaff, deactivateEventHandler);
+router.use(authMiddleware);
+router.get('/admin/list', requireStaff, listAllEventsForAdminHandler);
+router.get('/', listUpcomingEventsHandler);
+router.get('/past', listPastEventsHandler);
+router.get('/:id', getEventHandler);
+router.post('/', requireStaff, createEventHandler);
+router.put('/:id', requireStaff, updateEventHandler);
+router.delete('/:id', requireStaff, deactivateEventHandler);
+router.delete('/:id/permanent', requireStaff, hardDeleteEventHandler);
 export default router;
 //# sourceMappingURL=events.routes.js.map

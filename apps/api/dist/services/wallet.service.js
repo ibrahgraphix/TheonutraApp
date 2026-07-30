@@ -1,3 +1,4 @@
+//wallet.services
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import * as notificationService from './notification.service.js';
@@ -81,7 +82,6 @@ export async function getMyTransactions(distributorId, page = 1, limit = 20) {
  * Requires KYC to be approved before allowing withdrawal.
  */
 export async function requestWithdrawal(distributorId, amount, method, payoutDetails) {
-    // Check KYC status before allowing withdrawal
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('kyc_status')
@@ -93,14 +93,26 @@ export async function requestWithdrawal(distributorId, amount, method, payoutDet
     if (profile.kyc_status !== 'approved') {
         throw new ApiError(403, 'KYC must be approved before requesting a withdrawal');
     }
+    const { data: settings, error: settingsError } = await supabase
+        .from('wallet_settings')
+        .select('min_withdrawal, withdrawal_fee_pct')
+        .eq('id', 1)
+        .single();
+    if (settingsError || !settings) {
+        throw new ApiError(500, 'Wallet settings not configured');
+    }
+    if (amount < Number(settings.min_withdrawal)) {
+        throw new ApiError(400, `Minimum withdrawal amount is ${settings.min_withdrawal}`);
+    }
+    const feeAmount = amount * (Number(settings.withdrawal_fee_pct) / 100);
+    const netAmount = amount - feeAmount;
     const { data, error } = await supabase.rpc('create_withdrawal_request', {
         p_distributor_id: distributorId,
         p_amount: amount,
         p_method: method,
-        p_payout_details: payoutDetails,
+        p_payout_details: `${payoutDetails} (fee: ${feeAmount.toFixed(2)}, net: ${netAmount.toFixed(2)})`,
     });
     if (error) {
-        // Check if error is due to insufficient balance
         if (error.message.includes('Insufficient balance')) {
             throw new ApiError(400, 'Insufficient wallet balance');
         }
@@ -181,8 +193,9 @@ export async function approveWithdrawal(requestId, reviewedBy) {
         }
         throw new ApiError(500, `Failed to approve withdrawal: ${error.message}`);
     }
+    // Log audit action
     await auditLogService.logAction(reviewedBy, 'withdrawal_approved', 'withdrawal_request', requestId, {
-        distributorId: request.distributor_id,
+        distributor_id: request.distributor_id,
         amount: Number(request.amount),
     });
     // Send notification
@@ -221,8 +234,9 @@ export async function rejectWithdrawal(requestId, reviewedBy, notes) {
         }
         throw new ApiError(500, `Failed to reject withdrawal: ${error.message}`);
     }
+    // Log audit action
     await auditLogService.logAction(reviewedBy, 'withdrawal_rejected', 'withdrawal_request', requestId, {
-        distributorId: request.distributor_id,
+        distributor_id: request.distributor_id,
         amount: Number(request.amount),
         notes,
     });
@@ -231,7 +245,7 @@ export async function rejectWithdrawal(requestId, reviewedBy, notes) {
         await notificationService.notifyWithdrawalStatus(request.distributor_id, 'rejected', Number(request.amount), requestId, notes);
     }
     catch (notifError) {
-        console.error(`❌ Failed to send withdrawal rejection notification: ${notifError}`);
+        console.error(`❌ Faled to send withdrawal rejection notification: ${notifError}`);
         // Don't throw - notification failure shouldn't break the rejection
     }
 }

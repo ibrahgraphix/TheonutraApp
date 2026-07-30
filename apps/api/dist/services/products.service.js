@@ -1,6 +1,8 @@
+//productsservices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 // ── Public service functions ──────────────────────────────────────────────────
 /**
  * Returns all active products that have a price record for the given country
@@ -114,6 +116,13 @@ export async function createProduct(input, staffUserId) {
         await supabase.from('products').delete().eq('id', product.id);
         throw new ApiError(500, `Failed to insert product prices: ${priceError.message}`);
     }
+    // Notify staff of the new product
+    try {
+        await notificationService.notifyNewProduct(product.id, product.name);
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send new product notification: ${notifError}`);
+    }
     return mapProduct(product);
 }
 /**
@@ -217,6 +226,93 @@ export async function deactivateProduct(id) {
     // 3. Delete Cloudinary asset after successful deactivation
     await deleteCloudinaryAsset(oldImageUrl);
 }
+/**
+ * Lists ALL products (active and inactive) with ALL their country price rows,
+ * regardless of availability. Staff-only — used by the Manage → Products list
+ * and by the edit form to pre-fill every country's pricing.
+ */
+export async function listProductsForAdmin() {
+    const { data, error } = await supabase
+        .from('products')
+        .select(`
+      id,
+      name,
+      description,
+      image_url,
+      is_active,
+      pv,
+      created_at,
+      updated_at,
+      product_prices (
+        country_id,
+        price,
+        distributor_price,
+        is_available,
+        countries (
+          name,
+          currency_code
+        )
+      )
+    `)
+        .order('name', { ascending: true });
+    if (error) {
+        throw new ApiError(500, `Failed to list products: ${error.message}`);
+    }
+    return (data ?? []).map(mapAdminProduct);
+}
+/**
+ * Fetches a single product with ALL its country price rows, regardless of
+ * availability or active status. Staff-only — used by the edit form.
+ */
+export async function getProductForAdmin(id) {
+    const { data, error } = await supabase
+        .from('products')
+        .select(`
+      id,
+      name,
+      description,
+      image_url,
+      is_active,
+      pv,
+      created_at,
+      updated_at,
+      product_prices (
+        country_id,
+        price,
+        distributor_price,
+        is_available,
+        countries (
+          name,
+          currency_code
+        )
+      )
+    `)
+        .eq('id', id)
+        .maybeSingle();
+    if (error) {
+        throw new ApiError(500, `Failed to fetch product: ${error.message}`);
+    }
+    if (!data) {
+        throw new ApiError(404, 'Product not found');
+    }
+    return mapAdminProduct(data);
+}
+function mapAdminProduct(row) {
+    const base = mapProduct(row);
+    const priceRows = row['product_prices'] ?? [];
+    const pricing = priceRows.map((p) => {
+        const countryData = p['countries'];
+        return {
+            countryId: p['country_id'],
+            countryName: countryData?.['name'] ?? '',
+            currencyCode: countryData?.['currency_code'] ?? '',
+            price: Number(p['price'] ?? 0),
+            distributorPrice: Number(p['distributor_price'] ?? 0),
+            isAvailable: Boolean(p['is_available']),
+        };
+    });
+    return { ...base, pricing };
+}
 // ── Private helpers ──────────────────────────────────────────────────────────
 function mapProduct(row) {
     return {
@@ -242,5 +338,29 @@ function mapProductWithPrice(row) {
         base.currencyCode = countryData?.['currency_code'];
     }
     return base;
+}
+/**
+ * Reactivates a previously deactivated product.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function activateProduct(id) {
+    const { data: existing, error: fetchError } = await supabase
+        .from('products')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+    if (fetchError) {
+        throw new ApiError(500, `Failed to fetch product: ${fetchError.message}`);
+    }
+    if (!existing) {
+        throw new ApiError(404, 'Product not found');
+    }
+    const { error } = await supabase
+        .from('products')
+        .update({ is_active: true })
+        .eq('id', id);
+    if (error) {
+        throw new ApiError(500, `Failed to activate product: ${error.message}`);
+    }
 }
 //# sourceMappingURL=products.service.js.map

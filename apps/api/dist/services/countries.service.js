@@ -39,11 +39,10 @@ export async function createCountry(input) {
     return mapCountry(data);
 }
 /**
- * Updates fields on an existing country (e.g. toggle is_active, rename, etc.).
+ * Updates fields on an existing country (e.g. rename, change currency, etc.).
  * Staff-only — caller must have already passed requireStaff middleware.
  */
 export async function updateCountry(id, input) {
-    // Build the update payload, only including provided fields
     const patch = {};
     if (input.name !== undefined)
         patch['name'] = input.name;
@@ -73,6 +72,53 @@ export async function updateCountry(id, input) {
     }
     return mapCountry(data);
 }
+/**
+ * Soft-deactivates a country (is_active = false). Blocked if any distributor
+ * profile or available product price still references it — reference data
+ * is never hard-deleted while dependents exist.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function deactivateCountry(id) {
+    const { data: existing, error: fetchError } = await supabase
+        .from('countries')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+    if (fetchError) {
+        throw new ApiError(500, `Failed to fetch country: ${fetchError.message}`);
+    }
+    if (!existing) {
+        throw new ApiError(404, 'Country not found');
+    }
+    const { count: profileCount, error: profileError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('country_id', id);
+    if (profileError) {
+        throw new ApiError(500, `Failed to check referencing profiles: ${profileError.message}`);
+    }
+    if ((profileCount ?? 0) > 0) {
+        throw new ApiError(409, `Cannot deactivate country: ${profileCount} distributor(s) are still assigned to it`);
+    }
+    const { count: priceCount, error: priceError } = await supabase
+        .from('product_prices')
+        .select('*', { count: 'exact', head: true })
+        .eq('country_id', id)
+        .eq('is_available', true);
+    if (priceError) {
+        throw new ApiError(500, `Failed to check referencing product prices: ${priceError.message}`);
+    }
+    if ((priceCount ?? 0) > 0) {
+        throw new ApiError(409, `Cannot deactivate country: ${priceCount} product price(s) still reference it`);
+    }
+    const { error } = await supabase
+        .from('countries')
+        .update({ is_active: false })
+        .eq('id', id);
+    if (error) {
+        throw new ApiError(500, `Failed to deactivate country: ${error.message}`);
+    }
+}
 // ── Private helpers ──────────────────────────────────────────────────────────
 function mapCountry(row) {
     return {
@@ -83,5 +129,38 @@ function mapCountry(row) {
         isActive: row['is_active'],
         createdAt: row['created_at'],
     };
+}
+/**
+ * Reactivates a previously deactivated country (is_active = true).
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function activateCountry(id) {
+    const { data, error } = await supabase
+        .from('countries')
+        .update({ is_active: true })
+        .eq('id', id)
+        .select('id, name, iso_code, currency_code, is_active, created_at')
+        .single();
+    if (error) {
+        if (error.code === 'PGRST116') {
+            throw new ApiError(404, 'Country not found');
+        }
+        throw new ApiError(500, `Failed to activate country: ${error.message}`);
+    }
+    return mapCountry(data);
+}
+/**
+ * Returns ALL countries (active and inactive), for staff management screens.
+ * Staff-only — caller must have already passed requireStaff middleware.
+ */
+export async function listCountriesForAdmin() {
+    const { data, error } = await supabase
+        .from('countries')
+        .select('id, name, iso_code, currency_code, is_active, created_at')
+        .order('name', { ascending: true });
+    if (error) {
+        throw new ApiError(500, `Failed to list countries: ${error.message}`);
+    }
+    return (data ?? []).map(mapCountry);
 }
 //# sourceMappingURL=countries.service.js.map

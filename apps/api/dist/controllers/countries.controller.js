@@ -15,7 +15,7 @@ export async function listCountriesHandler(_req, res, next) {
 }
 /**
  * POST /api/countries
- * Creates a new country. Staff only.
+ * Creates a new country. Admin only.
  */
 export async function createCountryHandler(req, res, next) {
     try {
@@ -40,6 +40,54 @@ export async function updateCountryHandler(req, res, next) {
         const input = req.body;
         const country = await countriesService.updateCountry(id, input);
         res.status(200).json(country);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * PATCH /api/countries/:id/deactivate
+ * Soft-deactivates a country. Blocked if profiles/products still reference
+ * it. Staff only.
+ */
+export async function deactivateCountryHandler(req, res, next) {
+    try {
+        const id = req.params['id'];
+        if (!id) {
+            throw new ApiError(400, 'Country ID is required');
+        }
+        await countriesService.deactivateCountry(id);
+        res.status(200).json({ message: 'Country deactivated successfully' });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * PATCH /api/countries/:id/activate
+ * Reactivates a country. Staff only.
+ */
+export async function activateCountryHandler(req, res, next) {
+    try {
+        const id = req.params['id'];
+        if (!id) {
+            throw new ApiError(400, 'Country ID is required');
+        }
+        const country = await countriesService.activateCountry(id);
+        res.status(200).json(country);
+    }
+    catch (err) {
+        next(err);
+    }
+}
+/**
+ * GET /api/countries/admin/list
+ * Returns ALL countries including inactive ones. Staff only.
+ */
+export async function listCountriesForAdminHandler(req, res, next) {
+    try {
+        const countries = await countriesService.listCountriesForAdmin();
+        res.status(200).json(countries);
     }
     catch (err) {
         next(err);

@@ -30,6 +30,13 @@ export async function awardBonus(staffId, distributorId, category, amount, note)
     if (error || !data) {
         throw new ApiError(500, `Failed to award manual bonus: ${error?.message}`);
     }
+    // Log audit action
+    await auditLogService.logAction(staffId, 'manual_bonus_awarded', 'manual_bonus', data.id, {
+        distributor_id: distributorId,
+        amount,
+        category,
+        note: note || null,
+    });
     // Send notification to the distributor
     try {
         await notificationService.notifyManualBonus(distributorId, amount, note || category);
@@ -38,7 +45,7 @@ export async function awardBonus(staffId, distributorId, category, amount, note)
         console.error(`❌ Failed to send manual bonus notification: ${notifError}`);
         // Don't throw - notification failure shouldn't break the bonus award
     }
-    const bonus = {
+    return {
         ...data,
         amount: Number(data.amount),
         profiles: data.profiles ? {
@@ -50,13 +57,6 @@ export async function awardBonus(staffId, distributorId, category, amount, note)
             distributor_id: data.staff.distributor_id,
         } : undefined,
     };
-    await auditLogService.logAction(staffId, 'manual_bonus_awarded', 'manual_bonus', bonus.id, {
-        distributorId,
-        amount: bonus.amount,
-        category,
-        note: note || null,
-    });
-    return bonus;
 }
 /**
  * Returns paginated list of manual bonuses for a specific distributor.

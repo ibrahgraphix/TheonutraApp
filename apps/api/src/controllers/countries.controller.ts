@@ -48,7 +48,7 @@ export async function updateCountryHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Country ID is required');
     }
@@ -72,7 +72,7 @@ export async function deactivateCountryHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Country ID is required');
     }
@@ -94,7 +94,7 @@ export async function activateCountryHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Country ID is required');
     }

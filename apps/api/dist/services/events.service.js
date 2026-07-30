@@ -1,62 +1,105 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
-export async function createEvent(staffId, input) {
-    const { data, error } = await supabase
+import * as auditLogService from './auditLog.service.js';
+import * as notificationService from './notification.service.js';
+/**
+ * Creates a new event (staff only).
+ */
+export async function createEvent(createdBy, data) {
+    const { data: event, error } = await supabase
         .from('events')
         .insert({
-        title: input.title,
-        description: input.description || null,
-        event_type: input.eventType,
-        location: input.isVirtual ? null : input.location,
-        is_virtual: input.isVirtual,
-        virtual_link: input.isVirtual ? input.virtualLink : null,
-        start_at: input.startAt,
-        end_at: input.endAt,
-        banner_image_url: input.bannerImageUrl || null,
-        created_by: staffId,
+        title: data.title,
+        description: data.description || null,
+        event_type: data.event_type,
+        location: data.location || null,
+        is_online: data.is_online || false,
+        meeting_note: data.meeting_note || null,
+        start_at: data.start_at,
+        end_at: data.end_at,
+        banner_image_url: data.banner_image_url || null,
+        created_by: createdBy,
     })
-        .select('*')
+        .select()
         .single();
-    if (error || !data) {
+    if (error || !event) {
         throw new ApiError(500, `Failed to create event: ${error?.message}`);
     }
-    return data;
-}
-export async function updateEvent(eventId, staffId, input) {
-    const updatePayload = {};
-    if (input.title !== undefined)
-        updatePayload.title = input.title;
-    if (input.description !== undefined)
-        updatePayload.description = input.description;
-    if (input.eventType !== undefined)
-        updatePayload.event_type = input.eventType;
-    if (input.isVirtual !== undefined)
-        updatePayload.is_virtual = input.isVirtual;
-    if (input.location !== undefined)
-        updatePayload.location = input.location;
-    if (input.virtualLink !== undefined)
-        updatePayload.virtual_link = input.virtualLink;
-    if (input.startAt !== undefined)
-        updatePayload.start_at = input.startAt;
-    if (input.endAt !== undefined)
-        updatePayload.end_at = input.endAt;
-    if (input.bannerImageUrl !== undefined)
-        updatePayload.banner_image_url = input.bannerImageUrl;
-    if (Object.keys(updatePayload).length === 0) {
-        throw new ApiError(400, 'At least one field is required to update an event');
+    await auditLogService.logAction(createdBy, 'event_created', 'event', event.id, {
+        title: data.title,
+        event_type: data.event_type,
+        start_at: data.start_at,
+        end_at: data.end_at,
+    });
+    // Notify all staff and distributors of the new event — broadcast, since
+    // events are relevant to everyone, not one specific distributor.
+    try {
+        await notificationService.notifyNewEvent(event.id, data.title, data.event_type);
     }
-    const { data, error } = await supabase
+    catch (notifError) {
+        console.error(`❌ Failed to send new event notification: ${notifError}`);
+    }
+    return event;
+}
+/**
+ * Updates an existing event (staff only).
+ */
+export async function updateEvent(eventId, data) {
+    const { data: currentEvent, error: fetchError } = await supabase
         .from('events')
-        .update(updatePayload)
-        .eq('id', eventId)
         .select('*')
+        .eq('id', eventId)
         .single();
-    if (error || !data) {
+    if (fetchError || !currentEvent) {
+        throw new ApiError(404, 'Event not found');
+    }
+    const { data: event, error } = await supabase
+        .from('events')
+        .update({
+        title: data.title,
+        description: data.description,
+        event_type: data.event_type,
+        location: data.location,
+        is_online: data.is_online,
+        meeting_note: data.meeting_note,
+        start_at: data.start_at,
+        end_at: data.end_at,
+        banner_image_url: data.banner_image_url,
+    })
+        .eq('id', eventId)
+        .select()
+        .single();
+    if (error || !event) {
         throw new ApiError(500, `Failed to update event: ${error?.message}`);
     }
-    return data;
+    await auditLogService.logAction(currentEvent.created_by, 'event_updated', 'event', eventId, {
+        previous: {
+            title: currentEvent.title,
+            event_type: currentEvent.event_type,
+            start_at: currentEvent.start_at,
+            end_at: currentEvent.end_at,
+        },
+        new: {
+            title: data.title,
+            event_type: data.event_type,
+            start_at: data.start_at,
+            end_at: data.end_at,
+        },
+    });
+    return event;
 }
+/**
+ * Deactivates an event (soft delete via is_active flag) (staff only).
+ */
 export async function deactivateEvent(eventId) {
+    const { data: currentEvent, error: fetchError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+    if (fetchError || !currentEvent) {
+        throw new ApiError(404, 'Event not found');
+    }
     const { error } = await supabase
         .from('events')
         .update({ is_active: false })
@@ -64,75 +107,104 @@ export async function deactivateEvent(eventId) {
     if (error) {
         throw new ApiError(500, `Failed to deactivate event: ${error.message}`);
     }
+    await auditLogService.logAction(currentEvent.created_by, 'event_deactivated', 'event', eventId, {
+        title: currentEvent.title,
+        event_type: currentEvent.event_type,
+    });
 }
+/**
+ * Permanently deletes an event AND its Cloudinary banner image, if any.
+ * Staff only.
+ */
+export async function hardDeleteEvent(eventId) {
+    const { data: currentEvent, error: fetchError } = await supabase
+        .from('events')
+        .select('banner_image_url')
+        .eq('id', eventId)
+        .maybeSingle();
+    if (fetchError) {
+        throw new ApiError(500, `Failed to fetch event: ${fetchError.message}`);
+    }
+    if (!currentEvent) {
+        throw new ApiError(404, 'Event not found');
+    }
+    const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId);
+    if (error) {
+        throw new ApiError(500, `Failed to delete event: ${error.message}`);
+    }
+    if (currentEvent.banner_image_url) {
+        const { deleteCloudinaryAsset } = await import('./uploads.service.js');
+        await deleteCloudinaryAsset(currentEvent.banner_image_url, 'image');
+    }
+}
+/**
+ * Lists upcoming events with optional filters.
+ */
+export async function listUpcomingEvents(filters) {
+    let query = supabase
+        .from('events')
+        .select('*')
+        .eq('is_active', true)
+        .gte('start_at', new Date().toISOString())
+        .order('start_at', { ascending: true });
+    if (filters?.event_type) {
+        query = query.eq('event_type', filters.event_type);
+    }
+    if (filters?.start_from) {
+        query = query.gte('start_at', filters.start_from);
+    }
+    if (filters?.start_to) {
+        query = query.lte('start_at', filters.start_to);
+    }
+    const { data, error } = await query;
+    if (error) {
+        throw new ApiError(500, `Failed to fetch upcoming events: ${error.message}`);
+    }
+    return (data ?? []);
+}
+/**
+ * Lists past events.
+ */
+export async function listPastEvents() {
+    const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('is_active', true)
+        .lt('start_at', new Date().toISOString())
+        .order('start_at', { ascending: false });
+    if (error) {
+        throw new ApiError(500, `Failed to fetch past events: ${error.message}`);
+    }
+    return (data ?? []);
+}
+/**
+ * Lists ALL events (active and inactive), for staff management. Staff only.
+ */
+export async function listAllEventsForAdmin() {
+    const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('start_at', { ascending: false });
+    if (error) {
+        throw new ApiError(500, `Failed to fetch events: ${error.message}`);
+    }
+    return (data ?? []);
+}
+/**
+ * Gets a specific event by ID.
+ */
 export async function getEvent(eventId) {
     const { data, error } = await supabase
         .from('events')
         .select('*')
         .eq('id', eventId)
-        .eq('is_active', true)
         .single();
     if (error || !data) {
         throw new ApiError(404, 'Event not found');
     }
     return data;
-}
-export async function listUpcomingEvents(filters, page = 1, limit = 20) {
-    const offset = (page - 1) * limit;
-    const now = new Date().toISOString();
-    let query = supabase
-        .from('events')
-        .select('*', { count: 'exact' })
-        .eq('is_active', true)
-        .gte('start_at', now)
-        .order('start_at', { ascending: true });
-    if (filters.eventType) {
-        query = query.eq('event_type', filters.eventType);
-    }
-    if (filters.dateFrom) {
-        query = query.gte('start_at', filters.dateFrom);
-    }
-    if (filters.dateTo) {
-        query = query.lte('start_at', filters.dateTo);
-    }
-    const { data, count, error } = await query.range(offset, offset + limit - 1);
-    if (error) {
-        throw new ApiError(500, `Failed to fetch upcoming events: ${error.message}`);
-    }
-    return {
-        events: (data ?? []),
-        total: count ?? 0,
-        page,
-        limit,
-    };
-}
-export async function listPastEvents(filters, page = 1, limit = 20) {
-    const offset = (page - 1) * limit;
-    const now = new Date().toISOString();
-    let query = supabase
-        .from('events')
-        .select('*', { count: 'exact' })
-        .eq('is_active', true)
-        .lt('end_at', now)
-        .order('start_at', { ascending: false });
-    if (filters.eventType) {
-        query = query.eq('event_type', filters.eventType);
-    }
-    if (filters.dateFrom) {
-        query = query.gte('end_at', filters.dateFrom);
-    }
-    if (filters.dateTo) {
-        query = query.lte('end_at', filters.dateTo);
-    }
-    const { data, count, error } = await query.range(offset, offset + limit - 1);
-    if (error) {
-        throw new ApiError(500, `Failed to fetch past events: ${error.message}`);
-    }
-    return {
-        events: (data ?? []),
-        total: count ?? 0,
-        page,
-        limit,
-    };
 }
 //# sourceMappingURL=events.service.js.map

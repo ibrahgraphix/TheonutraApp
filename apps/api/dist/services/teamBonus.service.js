@@ -1,7 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import * as notificationService from './notification.service.js';
-import * as auditLogService from './auditLog.service.js';
 /**
  * Calculates team bonus for a distributor for a given period.
  * Walks the downline, groups by level, applies rank-appropriate rates.
@@ -328,7 +327,7 @@ export async function getTeamBonusRates() {
 /**
  * Updates team bonus rates (admin only)
  */
-export async function updateTeamBonusRates(rates, staffId) {
+export async function updateTeamBonusRates(rates) {
     for (const rate of rates) {
         const { error } = await supabase
             .from('team_bonus_rates')
@@ -341,6 +340,5 @@ export async function updateTeamBonusRates(rates, staffId) {
             throw new ApiError(500, `Failed to update team bonus rate: ${error.message}`);
         }
     }
-    await auditLogService.logAction(staffId, 'team_bonus_rates_updated', 'team_bonus_rates', 'bulk-update', { rates });
 }
 //# sourceMappingURL=teamBonus.service.js.map

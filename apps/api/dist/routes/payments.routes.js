@@ -3,7 +3,7 @@ import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireStaff } from '../middleware/requireStaff.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { BankPaymentSchema, MobileMoneyPaymentSchema } from '../schemas/payments.schema.js';
-import { submitBankPaymentHandler, submitMobileMoneyPaymentHandler, listPendingPaymentsHandler, confirmPaymentHandler, rejectPaymentHandler, } from '../controllers/payments.controller.js';
+import { submitBankPaymentHandler, submitMobileMoneyPaymentHandler, listPendingPaymentsHandler, confirmPaymentHandler, rejectPaymentHandler, markOrderPaidManuallyHandler, } from '../controllers/payments.controller.js';
 const router = Router();
 // Apply auth middleware to all payments routes
 router.use(authMiddleware);
@@ -17,5 +17,6 @@ router.get('/pending', requireStaff, listPendingPaymentsHandler);
 router.patch('/:id/confirm', requireStaff, confirmPaymentHandler);
 // PATCH /api/payments/:id/reject — reject payment (staff only)
 router.patch('/:id/reject', requireStaff, rejectPaymentHandler);
+router.patch('/awaiting/:orderId/mark-paid', authMiddleware, requireStaff, markOrderPaidManuallyHandler);
 export default router;
 //# sourceMappingURL=payments.routes.js.map

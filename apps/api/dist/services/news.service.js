@@ -1,6 +1,8 @@
+//newsServices
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 // Map database row to NewsPost interface
 function mapNews(row) {
     return {
@@ -85,6 +87,12 @@ export async function createNews(input, authorId) {
         .single();
     if (error || !data) {
         throw new ApiError(500, `Failed to create news item: ${error?.message}`);
+    }
+    try {
+        await notificationService.notifyNewNews(data.id, data.title);
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send new news notification: ${notifError}`);
     }
     return mapNews(data);
 }

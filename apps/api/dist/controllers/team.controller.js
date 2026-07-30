@@ -63,7 +63,7 @@ export async function getTeamCountsHandler(_req, res, next) {
  */
 export async function getTeamForDistributorHandler(req, res, next) {
     try {
-        const { id } = req.params;
+        const id = req.params['id'];
         if (!id) {
             throw new ApiError(400, 'Distributor id is required');
         }

@@ -4,13 +4,14 @@ import { requireAdmin } from '../middleware/requireAdmin.middleware.js';
 import { requireStaff } from '../middleware/requireStaff.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { CreateCountrySchema, UpdateCountrySchema } from '../schemas/catalog.schema.js';
-import { listCountriesHandler, createCountryHandler, updateCountryHandler, } from '../controllers/countries.controller.js';
+import { listCountriesHandler, listCountriesForAdminHandler, createCountryHandler, updateCountryHandler, deactivateCountryHandler, activateCountryHandler, } from '../controllers/countries.controller.js';
 const router = Router();
-// GET /api/countries — any authenticated user
+// Must come before any wildcard-ish routes — but there are none here, order is safe.
+router.get('/admin/list', authMiddleware, requireStaff, listCountriesForAdminHandler);
 router.get('/', authMiddleware, listCountriesHandler);
-// POST /api/countries — admin only (creates row in countries table)
 router.post('/', authMiddleware, requireAdmin, validate(CreateCountrySchema), createCountryHandler);
-// PATCH /api/countries/:id — staff can toggle/update; creating is admin-only
 router.patch('/:id', authMiddleware, requireStaff, validate(UpdateCountrySchema), updateCountryHandler);
+router.patch('/:id/deactivate', authMiddleware, requireStaff, deactivateCountryHandler);
+router.patch('/:id/activate', authMiddleware, requireStaff, activateCountryHandler);
 export default router;
 //# sourceMappingURL=countries.routes.js.map

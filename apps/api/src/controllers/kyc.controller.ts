@@ -58,10 +58,10 @@ export async function listPendingKycHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const pageParam = req.query['page'];
-    const limitParam = req.query['limit'];
-    const page = parseInt(Array.isArray(pageParam) ? pageParam[0] : String(pageParam || '1'), 10) || 1;
-    const limit = parseInt(Array.isArray(limitParam) ? limitParam[0] : String(limitParam || '20'), 10) || 20;
+    const pageVal = typeof req.query['page'] === 'string' ? req.query['page'] : undefined;
+    const limitVal = typeof req.query['limit'] === 'string' ? req.query['limit'] : undefined;
+    const page = parseInt(pageVal || '1', 10) || 1;
+    const limit = parseInt(limitVal || '20', 10) || 20;
     const result = await kycService.listPendingKyc(page, limit);
     res.status(200).json(result);
   } catch (err) {

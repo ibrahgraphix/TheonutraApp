@@ -78,7 +78,7 @@ export async function confirmPaymentHandler(
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Payment ID is required');
     }
@@ -104,7 +104,7 @@ export async function rejectPaymentHandler(
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Payment ID is required');
     }
@@ -133,7 +133,7 @@ export async function markOrderPaidManuallyHandler(
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const orderId = req.params['orderId'];
+    const orderId = req.params['orderId'] as string;
     if (!orderId) {
       throw new ApiError(400, 'Order ID is required');
     }

@@ -1,6 +1,8 @@
+//payments.services
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
 import { createSaleForOrder } from './commissions.service.js';
+import * as notificationService from './notification.service.js';
 /**
  * Validates that the order exists, belongs to the buyer, and is pending.
  */
@@ -49,6 +51,17 @@ export async function submitBankPayment(orderId, buyerId, referenceNo) {
     if (error || !data) {
         throw new ApiError(500, `Failed to submit bank payment: ${error?.message}`);
     }
+    try {
+        const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', buyerId)
+            .maybeSingle();
+        await notificationService.notifyPaymentSubmitted(orderId, buyerProfile?.full_name ?? 'A distributor', amount, 'bank_transfer');
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send payment submitted notification: ${notifError}`);
+    }
     return mapPayment(data);
 }
 /**
@@ -79,6 +92,17 @@ export async function submitMobileMoneyPayment(orderId, buyerId, provider, phone
         .single();
     if (error || !data) {
         throw new ApiError(500, `Failed to submit mobile money payment: ${error?.message}`);
+    }
+    try {
+        const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', buyerId)
+            .maybeSingle();
+        await notificationService.notifyPaymentSubmitted(orderId, buyerProfile?.full_name ?? 'A distributor', amount, 'mobile_money');
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send payment submitted notification: ${notifError}`);
     }
     return mapPayment(data);
 }
@@ -216,5 +240,56 @@ function mapPayment(row) {
         confirmedAt: row.confirmed_at,
         createdAt: row.created_at,
     };
+}
+/**
+ * Manually marks a "Pay Later" order as paid — used when a distributor
+ * settled payment outside the bank/mobile-money flow (e.g. cash handoff)
+ * and staff need to record it after the fact. Creates a confirmed payment
+ * record directly, flips the order to 'paid', and triggers the same sale
+ * creation logic normal payment confirmation does.
+ * Staff only.
+ */
+export async function markOrderPaidManually(orderId, staffId, method = 'cash', note) {
+    const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('status, total_amount')
+        .eq('id', orderId)
+        .single();
+    if (orderError || !order) {
+        throw new ApiError(404, 'Order not found');
+    }
+    if (order.status !== 'pending') {
+        throw new ApiError(422, `Cannot mark an order in '${order.status}' status as paid`);
+    }
+    const { data: existing } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('order_id', orderId)
+        .maybeSingle();
+    if (existing) {
+        throw new ApiError(422, 'A payment record already exists for this order — use the normal confirm flow instead');
+    }
+    const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+        order_id: orderId,
+        method,
+        reference_no: note ?? 'Marked paid manually by staff',
+        amount: Number(order.total_amount),
+        is_confirmed: true,
+        confirmed_by: staffId,
+        confirmed_at: new Date().toISOString(),
+    });
+    if (paymentError) {
+        throw new ApiError(500, `Failed to record manual payment: ${paymentError.message}`);
+    }
+    const { error: updateOrderError } = await supabase
+        .from('orders')
+        .update({ status: 'paid' })
+        .eq('id', orderId);
+    if (updateOrderError) {
+        throw new ApiError(500, `Failed to update order status: ${updateOrderError.message}`);
+    }
+    await createSaleForOrder(orderId);
 }
 //# sourceMappingURL=payments.service.js.map

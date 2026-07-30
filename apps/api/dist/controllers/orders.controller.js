@@ -54,4 +54,18 @@ export async function listMyOrdersHandler(req, res, next) {
         next(err);
     }
 }
+/**
+ * GET /api/orders/awaiting-payment
+ * Lists 'pending' orders with no payment record at all — i.e. "Pay Later"
+ * orders. Staff only.
+ */
+export async function listAwaitingPaymentOrdersHandler(req, res, next) {
+    try {
+        const orders = await ordersService.listAwaitingPaymentOrders();
+        res.status(200).json(orders);
+    }
+    catch (err) {
+        next(err);
+    }
+}
 //# sourceMappingURL=orders.controller.js.map

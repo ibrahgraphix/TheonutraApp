@@ -1,5 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
+import { deleteCloudinaryAsset } from './uploads.service.js';
+import * as notificationService from './notification.service.js';
 /**
  * Lists all training categories ordered by sort_order.
  */
@@ -143,6 +145,12 @@ export async function createMaterial(input, uploadedBy) {
     if (error) {
         throw new ApiError(500, `Failed to create training material: ${error.message}`);
     }
+    try {
+        await notificationService.notifyNewTraining(data.id, input.title);
+    }
+    catch (notifError) {
+        console.error(`❌ Failed to send new training notification: ${notifError}`);
+    }
     const material = data;
     return {
         ...material,
@@ -150,9 +158,23 @@ export async function createMaterial(input, uploadedBy) {
     };
 }
 /**
- * Updates an existing training material (staff only).
+ * Updates an existing training material (staff only). If pdf_url changes,
+ * deletes the old Cloudinary PDF (raw resource type) after a successful update.
  */
 export async function updateMaterial(materialId, input) {
+    // Fetch existing to know the old pdf_url before updating
+    const { data: existing, error: fetchError } = await supabase
+        .from('training_materials')
+        .select('pdf_url')
+        .eq('id', materialId)
+        .maybeSingle();
+    if (fetchError) {
+        throw new ApiError(500, `Failed to fetch training material: ${fetchError.message}`);
+    }
+    if (!existing) {
+        throw new ApiError(404, 'Training material not found');
+    }
+    const oldPdfUrl = existing.pdf_url;
     const { data, error } = await supabase
         .from('training_materials')
         .update({
@@ -176,6 +198,9 @@ export async function updateMaterial(materialId, input) {
     if (error || !data) {
         throw new ApiError(404, 'Training material not found');
     }
+    if (input.pdf_url !== undefined && input.pdf_url !== oldPdfUrl) {
+        await deleteCloudinaryAsset(oldPdfUrl, 'raw');
+    }
     const material = data;
     return {
         ...material,
@@ -183,7 +208,8 @@ export async function updateMaterial(materialId, input) {
     };
 }
 /**
- * Deactivates a training material (soft delete, staff only).
+ * Deactivates a training material (soft delete, staff only). Keeps the
+ * Cloudinary PDF in place — use hardDeleteMaterial to also remove it.
  */
 export async function deactivateMaterial(materialId) {
     const { error } = await supabase
@@ -195,6 +221,56 @@ export async function deactivateMaterial(materialId) {
         .eq('id', materialId);
     if (error) {
         throw new ApiError(404, 'Training material not found');
+    }
+}
+/**
+ * Permanently deletes a training material row AND its Cloudinary PDF.
+ * Use this instead of deactivateMaterial when the admin wants it fully
+ * gone (e.g. to reclaim Cloudinary free-tier storage), not just hidden.
+ */
+export async function hardDeleteMaterial(materialId) {
+    const { data, error: fetchError } = await supabase
+        .from('training_materials')
+        .select('pdf_url')
+        .eq('id', materialId)
+        .maybeSingle();
+    if (fetchError) {
+        throw new ApiError(500, `Failed to fetch training material: ${fetchError.message}`);
+    }
+    if (!data) {
+        throw new ApiError(404, 'Training material not found');
+    }
+    const { error } = await supabase
+        .from('training_materials')
+        .delete()
+        .eq('id', materialId);
+    if (error) {
+        throw new ApiError(500, `Failed to delete training material: ${error.message}`);
+    }
+    await deleteCloudinaryAsset(data.pdf_url, 'raw');
+}
+/**
+ * Permanently deletes a training category. Blocked if it still has any
+ * materials (active or inactive) — delete/reassign those first.
+ * Staff-only.
+ */
+export async function deleteCategory(categoryId) {
+    const { count, error: countError } = await supabase
+        .from('training_materials')
+        .select('*', { count: 'exact', head: true })
+        .eq('category_id', categoryId);
+    if (countError) {
+        throw new ApiError(500, `Failed to check category materials: ${countError.message}`);
+    }
+    if ((count ?? 0) > 0) {
+        throw new ApiError(409, `Cannot delete category: it still has ${count} material(s). Delete those first.`);
+    }
+    const { error } = await supabase
+        .from('training_categories')
+        .delete()
+        .eq('id', categoryId);
+    if (error) {
+        throw new ApiError(404, 'Training category not found');
     }
 }
 //# sourceMappingURL=training.service.js.map

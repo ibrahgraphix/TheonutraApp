@@ -35,7 +35,7 @@ export async function listPendingOPBBonusesHandler(req: Request, res: Response, 
 export async function approveOPBBonusHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.user) throw new ApiError(401, 'Unauthorized');
-    const { id } = req.params;
+    const id = req.params['id'] as string;
     if (!id) throw new ApiError(400, 'OPB bonus ID is required');
     await compensationService.approveOPBBonus(id, req.user.id);
     res.status(200).json({ message: 'OPB bonus approved and wallet credited' });
@@ -45,7 +45,7 @@ export async function approveOPBBonusHandler(req: Request, res: Response, next: 
 export async function rejectOPBBonusHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.user) throw new ApiError(401, 'Unauthorized');
-    const { id } = req.params;
+    const id = req.params['id'] as string;
     if (!id) throw new ApiError(400, 'OPB bonus ID is required');
     await compensationService.rejectOPBBonus(id, req.user.id);
     res.status(200).json({ message: 'OPB bonus rejected' });

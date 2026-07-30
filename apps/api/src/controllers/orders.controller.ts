@@ -40,7 +40,7 @@ export async function getOrderByIdHandler(
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     if (!id) {
       throw new ApiError(400, 'Order ID is required');
     }
