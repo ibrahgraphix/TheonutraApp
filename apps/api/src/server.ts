@@ -28,3 +28,19 @@ cron.schedule('5 0 1 * *', async () => {
     console.error(`[Cron] Requalification failed:`, err);
   }
 });
+
+// ── Keep-alive self-ping (production only) ────────────────────────────────────
+// Render's free tier sleeps after 15 min of inactivity, which would silently
+// kill the monthly cron above. This pings /health every 10 min to stay awake.
+if (env.NODE_ENV === 'production') {
+  const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const res = await fetch(`${RENDER_URL}/health`);
+      console.log(`[KeepAlive] Pinged ${RENDER_URL}/health — ${res.status}`);
+    } catch (err) {
+      console.error(`[KeepAlive] Ping failed:`, err);
+    }
+  });
+  console.log(`[api] ⏰  Keep-alive ping scheduled every 10 min → ${RENDER_URL}/health`);
+}
