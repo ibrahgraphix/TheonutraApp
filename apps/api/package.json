@@ -29,18 +29,18 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.110.3",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/node-cron": "^3.0.11",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jose": "^6.2.3",
-    "zod": "^4.4.3",
     "node-cron": "^4.6.0",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^26.1.1",
-    "@types/node-cron": "^3.0.11",
-    "typescript": "^7.0.2"
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
