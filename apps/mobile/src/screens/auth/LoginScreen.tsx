@@ -113,11 +113,6 @@ export function LoginScreen() {
 
             <Text style={styles.forgotHint}>Forgot your password? Contact your admin.</Text>
           </View>
-
-          <Text style={styles.demoHint}>
-            Demo: TN004 / password123{'\n'}
-            Admin: TN001 / password123 · Staff: TN002 / password123
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
