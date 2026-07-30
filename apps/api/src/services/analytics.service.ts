@@ -43,10 +43,10 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
 
   const currency = (profile.countries as any)?.currency_code || 'USD';
 
-  // 1. Personal sales this month
+  // 1. Personal sales this month - join with orders to get currency
   const { data: personalSalesData, error: personalError } = await supabase
     .from('sales')
-    .select('amount, currency_code')
+    .select('amount, orders!inner(currency_code)')
     .eq('distributor_id', distributorId)
     .gte('sale_date', startDate.toISOString().slice(0, 10))
     .lt('sale_date', endDate.toISOString().slice(0, 10));
@@ -58,7 +58,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   // Convert personal sales to user's currency
   const personalSales = (personalSalesData ?? []).reduce((sum, sale) => {
     const saleAmount = Number(sale.amount);
-    const saleCurrency = sale.currency_code || 'USD';
+    const saleCurrency = (sale.orders as any)?.currency_code || 'USD';
     const amountInUSD = convertToUSD(saleAmount, saleCurrency);
     const amountInUserCurrency = convertFromUSD(amountInUSD, currency);
     return sum + amountInUserCurrency;
@@ -80,7 +80,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   if (memberIds.length > 0) {
     const { data: teamSalesData, error: teamSalesError } = await supabase
       .from('sales')
-      .select('amount, currency_code')
+      .select('amount, orders!inner(currency_code)')
       .in('distributor_id', memberIds)
       .gte('sale_date', startDate.toISOString().slice(0, 10))
       .lt('sale_date', endDate.toISOString().slice(0, 10));
@@ -92,7 +92,7 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
     // Convert all team sales to user's currency
     teamSales = (teamSalesData ?? []).reduce((sum, sale) => {
       const saleAmount = Number(sale.amount);
-      const saleCurrency = sale.currency_code || 'USD';
+      const saleCurrency = (sale.orders as any)?.currency_code || 'USD';
       const amountInUSD = convertToUSD(saleAmount, saleCurrency);
       const amountInUserCurrency = convertFromUSD(amountInUSD, currency);
       return sum + amountInUserCurrency;

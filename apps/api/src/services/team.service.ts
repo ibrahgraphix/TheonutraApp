@@ -157,10 +157,10 @@ async function fetchTeam(
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
-  // Fetch sales with currency information for conversion
+  // Fetch sales with currency information for conversion (join with orders to get currency)
   const { data: salesRows, error: salesError } = await supabase
     .from('sales')
-    .select('distributor_id, amount, currency_code')
+    .select('distributor_id, amount, orders!inner(currency_code)')
     .in('distributor_id', memberIds)
     .gte('sale_date', monthStart.slice(0, 10));
 
@@ -171,7 +171,7 @@ async function fetchTeam(
   const salesMap = new Map<string, number>();
   for (const s of salesRows ?? []) {
     const saleAmount = Number(s.amount);
-    const saleCurrency = s.currency_code || 'USD';
+    const saleCurrency = (s.orders as any)?.currency_code || 'USD';
     
     // Convert sale to USD first, then to user's currency
     const amountInUSD = convertToUSD(saleAmount, saleCurrency);
