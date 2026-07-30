@@ -1421,9 +1421,10 @@ export async function getMyWallet(): Promise<WalletBalance> {
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch wallet'));
   const data = await response.json();
+  console.log('Wallet data:', data); // Debug log
   return {
-    balance: data.balance,
-    currency: data.currency || 'TZS', // Use backend currency or default to TZS
+    balance: Number(data.balance) || 0,
+    currency: data.currency || 'TZS',
     recentTransactions: data.recentTransactions || [],
   };
 }
@@ -1439,7 +1440,14 @@ export async function getMyTransactions(
     },
   );
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch transactions'));
-  return response.json();
+  const data = await response.json();
+  console.log('Transactions data:', data); // Debug log
+  return {
+    transactions: data.transactions || [],
+    total: data.total || 0,
+    page: data.page || page,
+    limit: data.limit || limit,
+  };
 }
 
 export async function requestWithdrawal(
@@ -1464,7 +1472,9 @@ export async function getMyWithdrawals(): Promise<WithdrawalRequest[]> {
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch withdrawals'));
-  return response.json();
+  const data = await response.json();
+  console.log('Withdrawals data:', data); // Debug log
+  return data || [];
 }
 
 export async function getAllWithdrawals(status?: string): Promise<WithdrawalRequest[]> {

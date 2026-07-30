@@ -44,48 +44,85 @@ export interface WithdrawalRequest {
  * Ensures a wallet exists for a distributor, then returns the wallet and recent transactions.
  */
 export async function getMyWallet(distributorId: string): Promise<{ balance: number; currency: string; recentTransactions: WalletTransaction[] }> {
+  // Get currency from profile first
+  let currency = 'USD';
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('countries!inner(currency_code)')
+      .eq('id', distributorId)
+      .single();
+    
+    if (profile) {
+      currency = (profile as any)?.countries?.currency_code || 'USD';
+    }
+  } catch (error) {
+    // If profile fetch fails, default to USD
+    console.error('Failed to fetch currency from profile:', error);
+    currency = 'USD';
+  }
+
   // Ensure wallet exists by trying to insert a zero-balance wallet
-  const { error: insertError } = await supabase
-    .from('wallets')
-    .insert({ distributor_id: distributorId, balance: 0.00 });
+  try {
+    const { error: insertError } = await supabase
+      .from('wallets')
+      .insert({ distributor_id: distributorId, balance: 0.00 });
 
-  if (insertError && insertError.code !== '23505') { // Ignore unique key violation
-    throw new ApiError(500, `Failed to ensure wallet: ${insertError.message}`);
+    if (insertError && insertError.code !== '23505') { // Ignore unique key violation
+      console.error('Failed to ensure wallet:', insertError.message);
+    }
+  } catch (error) {
+    console.error('Error ensuring wallet exists:', error);
   }
 
-  // Fetch the wallet with distributor's country currency
-  const { data: wallet, error: walletError } = await supabase
-    .from('wallets')
-    .select('balance, profiles!inner(countries!inner(currency_code))')
-    .eq('distributor_id', distributorId)
-    .single();
+  // Fetch the wallet (use separate queries for better error handling)
+  let balance = 0;
+  try {
+    const { data: wallet, error: walletError } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('distributor_id', distributorId)
+      .single();
 
-  if (walletError || !wallet) {
-    throw new ApiError(500, `Failed to fetch wallet: ${walletError?.message}`);
+    if (!walletError && wallet) {
+      balance = Number(wallet.balance);
+    }
+  } catch (error) {
+    console.error('Failed to fetch wallet balance:', error);
+    balance = 0;
   }
-
-  const currency = (wallet.profiles as any)?.countries?.currency_code || 'USD';
 
   // Fetch recent transactions (top 10)
-  const { data: transactions, error: txError } = await supabase
-    .from('wallet_transactions')
-    .select('*')
-    .eq('distributor_id', distributorId)
-    .order('created_at', { ascending: false })
-    .limit(10);
+  let transactions: WalletTransaction[] = [];
+  try {
+    const { data: txData, error: txError } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('distributor_id', distributorId)
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-  if (txError) {
-    throw new ApiError(500, `Failed to fetch recent transactions: ${txError.message}`);
+    if (!txError && txData) {
+      transactions = txData.map(tx => ({
+        id: tx.id,
+        distributor_id: tx.distributor_id,
+        type: tx.type,
+        source_type: tx.source_type,
+        source_id: tx.source_id,
+        amount: Number(tx.amount),
+        balance_after: Number(tx.balance_after),
+        created_at: tx.created_at,
+      }));
+    }
+  } catch (error) {
+    console.error('Failed to fetch recent transactions:', error);
+    transactions = [];
   }
 
   return {
-    balance: Number(wallet.balance),
+    balance,
     currency,
-    recentTransactions: (transactions ?? []).map(tx => ({
-      ...tx,
-      amount: Number(tx.amount),
-      balance_after: Number(tx.balance_after),
-    })),
+    recentTransactions: transactions,
   };
 }
 
@@ -123,9 +160,14 @@ export async function getMyTransactions(
 
   return {
     transactions: (data ?? []).map(tx => ({
-      ...tx,
+      id: tx.id,
+      distributor_id: tx.distributor_id,
+      type: tx.type,
+      source_type: tx.source_type,
+      source_id: tx.source_id,
       amount: Number(tx.amount),
       balance_after: Number(tx.balance_after),
+      created_at: tx.created_at,
     })),
     total: count ?? 0,
     page,

@@ -74,8 +74,8 @@ export function WalletScreen() {
         getMyWithdrawals(),
       ]);
       setWallet(w);
-      setTransactions(txData.transactions);
-      setWithdrawals(wdData);
+      setTransactions(txData.transactions || []);
+      setWithdrawals(wdData || []);
       if (isStaff) {
         setKycVerified(true);
       } else {
@@ -86,8 +86,13 @@ export function WalletScreen() {
           setKycVerified(false);
         }
       }
-    } catch {
-      // keep partial state
+    } catch (error) {
+      console.error('Error loading wallet data:', error);
+      Alert.alert('Error', 'Failed to load wallet data. Please try again.');
+      // Set empty state on error
+      setWallet(null);
+      setTransactions([]);
+      setWithdrawals([]);
     } finally {
       setLoading(false);
     }
