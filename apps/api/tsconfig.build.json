@@ -1,4 +1,3 @@
-//tsconfig for build
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -12,4 +11,3 @@
     ]
   }
 }
-
