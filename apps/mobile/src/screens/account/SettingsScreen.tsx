@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,8 @@ import {
   changePassword,
   changePhone,
   deleteAccount,
+  getPaymentMethod,
+  updatePaymentMethod,
 } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, typography } from '../../theme';
@@ -70,6 +72,7 @@ export function SettingsScreen() {
   const [paymentMethodModal, setPaymentMethodModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [loadingPaymentMethod, setLoadingPaymentMethod] = useState(false);
 
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -89,6 +92,35 @@ export function SettingsScreen() {
       paymentAccountNumber: distributor?.payment_account_number || '',
     },
   });
+
+  const loadPaymentMethod = useCallback(async () => {
+    if (!distributor) return;
+    setLoadingPaymentMethod(true);
+    try {
+      const data = await getPaymentMethod();
+      paymentMethodForm.reset({
+        paymentMethod: data.payment_method || 'mpesa',
+        paymentFullName: data.payment_full_name || '',
+        paymentAccountNumber: data.payment_account_number || '',
+      });
+      // Update local distributor state
+      updateDistributor({
+        ...distributor,
+        payment_method: data.payment_method,
+        payment_full_name: data.payment_full_name,
+        payment_account_number: data.payment_account_number,
+      });
+    } catch (e) {
+      // If payment method not set yet, that's okay - just use defaults
+      console.log('No payment method set yet');
+    } finally {
+      setLoadingPaymentMethod(false);
+    }
+  }, [distributor, paymentMethodForm, updateDistributor]);
+
+  useEffect(() => {
+    loadPaymentMethod();
+  }, [loadPaymentMethod]);
 
   const handlePasswordChange = passwordForm.handleSubmit(async (data) => {
     if (!distributor) return;
@@ -126,8 +158,14 @@ export function SettingsScreen() {
     setSubmitting(true);
     setSettingsError(null);
     try {
-      // This would need to be implemented in the API
-      // await updatePaymentMethod(distributor.id, data);
+      await updatePaymentMethod(data);
+      // Update the local distributor state with the new payment method
+      updateDistributor({
+        ...distributor,
+        payment_method: data.paymentMethod,
+        payment_full_name: data.paymentFullName,
+        payment_account_number: data.paymentAccountNumber,
+      });
       setPaymentMethodModal(false);
       Alert.alert('Success', 'Payment method saved successfully');
     } catch (e) {
@@ -175,9 +213,13 @@ export function SettingsScreen() {
             <View>
               <Text style={styles.rowLabel}>Payment Method</Text>
               <Text style={styles.rowValue}>
-                {distributor.payment_method 
-                  ? PAYMENT_METHODS.find(m => m.id === distributor.payment_method)?.name || distributor.payment_method
-                  : 'Not set'}
+                {loadingPaymentMethod ? (
+                  'Loading...'
+                ) : distributor.payment_method ? (
+                  PAYMENT_METHODS.find(m => m.id === distributor.payment_method)?.name || distributor.payment_method
+                ) : (
+                  'Not set'
+                )}
               </Text>
             </View>
             <Text style={styles.chevron}>›</Text>

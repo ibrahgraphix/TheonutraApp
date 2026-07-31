@@ -14,4 +14,7 @@ export interface Distributor {
   avatarUrl?: string;
   email?: string;
   isActive?: boolean;
+  payment_method?: string;
+  payment_full_name?: string;
+  payment_account_number?: string;
 }

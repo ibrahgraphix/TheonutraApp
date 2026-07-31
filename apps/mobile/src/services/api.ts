@@ -84,6 +84,10 @@ export async function login(
       country: string;
       countryId: string;
       mustChangePassword: boolean;
+      phone?: string;
+      payment_method?: string;
+      payment_full_name?: string;
+      payment_account_number?: string;
     };
   };
 
@@ -95,12 +99,15 @@ export async function login(
       id: data.user.id,
       distributorId: data.user.distributorId,
       fullName: data.user.fullName,
-      phone: '',
+      phone: data.user.phone || '',
       role: data.user.role as DistributorRole,
       country: data.user.country,
       countryId: data.user.countryId,
       referredBy: null,
       joinDate: '',
+      payment_method: data.user.payment_method,
+      payment_full_name: data.user.payment_full_name,
+      payment_account_number: data.user.payment_account_number,
     }
   };
 }
@@ -956,6 +963,46 @@ export async function changePhone(
     referredBy: s.referredBy,
     joinDate: s.createdAt,
   };
+}
+
+export async function getPaymentMethod(): Promise<{
+  payment_method: string;
+  payment_full_name: string;
+  payment_account_number: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/api/account/payment-method`, {
+    method: 'GET',
+    headers: {
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(parseApiError(body, 'Failed to fetch payment method'));
+  }
+
+  return response.json();
+}
+
+export async function updatePaymentMethod(data: {
+  payment_method: string;
+  payment_full_name: string;
+  payment_account_number: string;
+}): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/account/payment-method`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(parseApiError(body, 'Failed to update payment method'));
+  }
 }
 
 export async function deleteAccount(distributorId: string): Promise<void> {

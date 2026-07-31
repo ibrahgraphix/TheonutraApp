@@ -12,6 +12,10 @@ export interface LoginResult {
     country: string;
     countryId: string;
     mustChangePassword: boolean;
+    phone?: string;
+    payment_method?: string;
+    payment_full_name?: string;
+    payment_account_number?: string;
   };
 }
 
@@ -54,6 +58,10 @@ export async function login(
       must_change_password,
       is_active,
       country_id,
+      phone_number,
+      payment_method,
+      payment_full_name,
+      payment_account_number,
       countries (
         name
       )
@@ -85,6 +93,10 @@ export async function login(
       country: countryName,
       countryId: profile.country_id as string,
       mustChangePassword: profile.must_change_password as boolean,
+      phone: profile.phone_number as string | undefined,
+      payment_method: profile.payment_method as string | undefined,
+      payment_full_name: profile.payment_full_name as string | undefined,
+      payment_account_number: profile.payment_account_number as string | undefined,
     },
   };
 }

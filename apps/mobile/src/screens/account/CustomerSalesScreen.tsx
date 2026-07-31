@@ -126,7 +126,7 @@ export function CustomerSalesScreen() {
     }
   };
 
-  const totalEarnings = sales.reduce((sum, s) => {
+  const totalEarnings = (sales || []).reduce((sum, s) => {
     const items = s.items ?? [];
     return (
       sum +
@@ -139,7 +139,7 @@ export function CustomerSalesScreen() {
     );
   }, 0);
 
-  const totalPV = sales.reduce((sum, s) => sum + (s.totalPV ?? 0), 0);
+  const totalPV = (sales || []).reduce((sum, s) => sum + (s.totalPV ?? 0), 0);
 
   return (
     <View style={styles.container}>

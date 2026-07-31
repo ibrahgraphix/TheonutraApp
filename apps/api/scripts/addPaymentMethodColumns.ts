@@ -1,85 +1,26 @@
 /**
  * Migration script to add payment method columns to profiles table
- * Run this script to update the database schema
+ * Note: This script requires manual execution in Supabase SQL Editor
+ * Copy and paste the SQL statements below into your Supabase SQL Editor
  */
 
-import { supabase } from '../src/config/supabase.js';
+console.log(`
+===========================================
+PAYMENT METHOD COLUMNS MIGRATION
+===========================================
 
-async function addPaymentMethodColumns() {
-  console.log('Adding payment method columns to profiles table...');
+Please run the following SQL statements in your Supabase SQL Editor:
 
-  try {
-    // Add payment_method column
-    const { error: methodError } = await supabase.rpc('add_column_if_not_exists', {
-      table_name: 'profiles',
-      column_name: 'payment_method',
-      column_type: 'text'
-    });
+1. Add payment_method column:
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_method text;
 
-    if (methodError) {
-      console.error('Error adding payment_method column:', methodError);
-    } else {
-      console.log('✅ Added payment_method column');
-    }
+2. Add payment_full_name column:
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_full_name text;
 
-    // Add payment_full_name column
-    const { error: nameError } = await supabase.rpc('add_column_if_not_exists', {
-      table_name: 'profiles',
-      column_name: 'payment_full_name',
-      column_type: 'text'
-    });
+3. Add payment_account_number column:
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_account_number text;
 
-    if (nameError) {
-      console.error('Error adding payment_full_name column:', nameError);
-    } else {
-      console.log('✅ Added payment_full_name column');
-    }
-
-    // Add payment_account_number column
-    const { error: accountError } = await supabase.rpc('add_column_if_not_exists', {
-      table_name: 'profiles',
-      column_name: 'payment_account_number',
-      column_type: 'text'
-    });
-
-    if (accountError) {
-      console.error('Error adding payment_account_number column:', accountError);
-    } else {
-      console.log('✅ Added payment_account_number column');
-    }
-
-    console.log('Migration completed successfully');
-  } catch (error) {
-    console.error('Migration failed:', error);
-    process.exit(1);
-  }
-}
-
-// Alternative approach using raw SQL if RPC is not available
-async function addPaymentMethodColumnsSQL() {
-  console.log('Adding payment method columns using raw SQL...');
-
-  const sqlStatements = [
-    `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_method text;`,
-    `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_full_name text;`,
-    `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS payment_account_number text;`
-  ];
-
-  for (const sql of sqlStatements) {
-    try {
-      const { error } = await supabase.rpc('exec_sql', { sql });
-      if (error) {
-        console.error('Error executing SQL:', error);
-      } else {
-        console.log('✅ Executed:', sql);
-      }
-    } catch (e) {
-      console.error('SQL execution failed:', e);
-    }
-  }
-
-  console.log('Migration completed');
-}
-
-// Run the migration
-addPaymentMethodColumns().catch(console.error);
+===========================================
+After running these statements, the payment method feature will work correctly.
+===========================================
+`);
