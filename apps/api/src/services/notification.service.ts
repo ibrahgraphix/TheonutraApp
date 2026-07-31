@@ -207,7 +207,7 @@ export async function notifyTeamBonusEarned(
 
 export async function notifyWithdrawalStatus(
   distributorId: string,
-  status: 'approved' | 'rejected' | 'paid',
+  status: 'approved' | 'rejected' | 'paid' | 'failed' | 'cancelled',
   amount: number,
   requestId: string,
   reason?: string,
@@ -227,6 +227,14 @@ export async function notifyWithdrawalStatus(
     case 'paid':
       title = 'Withdrawal Paid';
       body = `Your withdrawal of ${amount.toFixed(2)} has been paid.`;
+      break;
+    case 'failed':
+      title = 'Withdrawal Failed';
+      body = `Your withdrawal of ${amount.toFixed(2)} has failed.${reason ? ` Reason: ${reason}` : ''}`;
+      break;
+    case 'cancelled':
+      title = 'Withdrawal Cancelled';
+      body = `Your withdrawal request of ${amount.toFixed(2)} has been cancelled.`;
       break;
   }
 
