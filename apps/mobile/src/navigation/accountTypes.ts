@@ -8,4 +8,6 @@ export type AccountStackParamList = {
   Events: undefined;
   Referral: undefined;
   Loyalty: undefined;
+  CustomerSales: undefined;
+  Settings: undefined;
 };

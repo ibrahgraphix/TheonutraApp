@@ -349,4 +349,103 @@ TABLE OF CONTENTS:
                npm -w api run test:manual-bonus
     [ ] 14.11. Events, Loyalty, & Audit log:
                npm -w api run test:events-loyalty-audit
+
+[ ] 15. THEONUTRA V1 OFFICIAL PAYMENT & COMPENSATION POLICY
+    [ ] 15.1. Part A - Retail Profit becomes report-only, never touches wallet:
+              [ ] Log in as a distributor on the mobile app
+              [ ] Navigate to Account tab and tap the "Customer Sales" quick link button
+              [ ] Tap the "+ Log New Sale" button to open the sale logging modal
+              [ ] Fill in customer details: customer name "John Customer", phone "+255799988877"
+              [ ] Select a product from the product picker (e.g., "Slimfit tea")
+              [ ] Set quantity to 2 units and adjust customer price if needed
+              [ ] Submit the sale and verify success message "Retail profit is for reporting purposes only"
+              [ ] Navigate to Wallet screen and verify wallet balance has NOT changed
+              [ ] Return to Customer Sales screen and verify the new sale appears in the history
+              [ ] Verify the "Retail Profit (Report)" card shows the calculated profit but marked as "Informational only"
+              [ ] Access the GET /api/customer-sales/retail-profit-report endpoint via API client
+              [ ] Verify the endpoint returns retail profit data by period without any wallet balance changes
+              [ ] Check Supabase database to confirm no wallet_transactions record was created for the retail profit
+              [ ] Verify that the customer_sales table contains the sale record with retail_profit calculated
+
+    [ ] 15.2. Part B - Network bonuses become monthly-only, held as "Pending" until approved:
+              [ ] Note: OPB and other bonus calculations run as backend scheduled jobs, not through frontend
+              [ ] Run the daily job (runDailyUpdate) via backend API endpoint or server script
+              [ ] Verify the job calculates PPV/CGV correctly by checking distributor rank data
+              [ ] Check wallet_transactions table to confirm NO new wallet credits were created by the daily job
+              [ ] Run the monthly job (runMonthlyRequalification) via backend API endpoint or server script
+              [ ] Check the commissions table for referral/direct commission records with status: 'pending'
+              [ ] Check the team_bonuses table for team bonus records with status: 'pending'
+              [ ] Check the opb_payments table for OPB records with status: 'pending'
+              [ ] Check the leadership_bonuses table for leadership/rank bonus records with status: 'pending'
+              [ ] Verify that none of these pending bonuses have corresponding wallet_transactions entries
+              [ ] Log in as staff on mobile app and navigate to Manage tab
+              [ ] Tap "OPB Bonuses" to access the ManageOPB screen
+              [ ] Verify the screen shows pending OPB bonuses awaiting approval
+              [ ] Select a pending OPB bonus and tap "Approve"
+              [ ] Verify the bonus status changes from 'pending' to 'approved' in the database
+              [ ] Verify a new wallet_transactions entry is created for the approved bonus
+              [ ] Check the distributor's wallet balance and confirm it increased by the bonus amount
+              [ ] Test rejecting a pending OPB bonus and verify it never reaches the wallet
+              [ ] Note: Similar approval screens need to be created for other bonus types (referral, team, leadership)
+
+    [ ] 15.3. Part C - Member Payment Method profile:
+              [ ] Log in as a distributor on the mobile app
+              [ ] Navigate to Account tab and tap "Account Settings" in the Settings section
+              [ ] Verify the Settings screen opens with profile information
+              [ ] Verify the "Payment Method" section exists in the settings list
+              [ ] Tap on "Payment Method" to open the payment method modal
+              [ ] Select payment method: "M-Pesa" from the provider picker buttons
+              [ ] Enter full name: "Jane Doe"
+              [ ] Enter phone number: "+255711122233"
+              [ ] Tap "Save Payment Method" and verify success message
+              [ ] Navigate back to Settings and tap "Payment Method" again
+              [ ] Verify the saved payment method details persist correctly
+              [ ] Edit the payment method: change provider to "Airtel Money" and update account number
+              [ ] Save changes and verify the updates persist
+              [ ] Access the GET /api/account/payment-method endpoint via API client with distributor token
+              [ ] Verify the endpoint returns the saved payment method details correctly
+              [ ] Test the PATCH /api/account/payment-method endpoint to update details via API
+              [ ] Navigate to Wallet screen and tap "Request Withdrawal"
+              [ ] Verify the payout details field is auto-filled with the saved payment method info
+              [ ] Modify the pre-filled details in the withdrawal request to test override functionality
+              [ ] Submit the withdrawal request and verify it uses the overridden details
+
+    [ ] 15.4. Part D - Add HaloPesa:
+              [ ] Log in as a distributor and navigate to Shop tab
+              [ ] Add products to cart and proceed to Checkout screen
+              [ ] In the payment method section, verify 'HaloPesa' appears in the MobileMoneyProvider list
+              [ ] Navigate to Account tab > Account Settings > Payment Method
+              [ ] Verify 'HaloPesa' appears in the payment provider picker buttons
+              [ ] Select 'HaloPesa' and verify it can be saved as a payment method
+              [ ] Navigate to Wallet screen and tap "Request Withdrawal"
+              [ ] In the withdrawal modal, verify 'HaloPesa' is selectable in the provider list
+              [ ] Select HaloPesa in each location (Checkout, Payment Method Settings, Withdrawal)
+              [ ] Verify HaloPesa functions correctly in all three locations
+              [ ] Confirm HaloPesa appears everywhere that Mixx by Yas currently appears
+
+    [ ] 15.5. Part E - Withdrawal statuses: add Failed and Cancelled:
+              [ ] Log in as a distributor and submit a withdrawal request for testing
+              [ ] Log in as staff on the mobile app
+              [ ] Navigate to Manage tab and tap "Withdrawal Management" (or Manage Withdrawals)
+              [ ] Locate the test withdrawal request in the pending list
+              [ ] Tap on the withdrawal request to view details
+              [ ] Tap "Mark as Failed" button (or similar staff action)
+              [ ] Enter a reason for failure: "Bank account invalid"
+              [ ] Confirm the action and verify the withdrawal status changes to 'failed'
+              [ ] Check the withdrawal_requests table in Supabase to confirm status is 'failed'
+              [ ] Log in as the distributor and check the Notifications screen
+              [ ] Verify a notification appears with title "Withdrawal Failed" and the reason
+              [ ] Return to staff account and select another pending withdrawal request
+              [ ] Tap "Cancel Withdrawal" button (or similar staff action)
+              [ ] Confirm the cancellation and verify the withdrawal status changes to 'cancelled'
+              [ ] Check the withdrawal_requests table to confirm status is 'cancelled'
+              [ ] Log in as the distributor and verify a "Withdrawal Cancelled" notification appears
+              [ ] Navigate to Wallet screen as a distributor
+              [ ] Verify the withdrawal status badge displays 'failed' with appropriate color (e.g., red)
+              [ ] Verify the withdrawal status badge displays 'cancelled' with appropriate color (e.g., gray)
+              [ ] Log in as staff and verify the admin withdrawal management screen shows both new statuses
+              [ ] Verify the status colors are consistent and distinguishable in the staff interface
+              [ ] Test the database constraint by attempting to insert invalid withdrawal statuses
+              [ ] Verify the withdrawal_requests.status check constraint accepts 'failed' and 'cancelled'
+
 ================================================================================

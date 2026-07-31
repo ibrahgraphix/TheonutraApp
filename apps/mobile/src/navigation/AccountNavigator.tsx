@@ -9,6 +9,8 @@ import { TrainingMaterialsScreen } from '../screens/account/TrainingMaterialsScr
 import { WalletScreen } from '../screens/account/WalletScreen';
 import { ReferralScreen } from '../screens/account/ReferralScreen';
 import { LoyaltyScreen } from '../screens/account/LoyaltyScreen';
+import { CustomerSalesScreen } from '../screens/account/CustomerSalesScreen';
+import { SettingsScreen } from '../screens/account/SettingsScreen';
 import type { AccountStackParamList } from './accountTypes';
 
 const Stack = createNativeStackNavigator<AccountStackParamList>();
@@ -25,6 +27,8 @@ export function AccountNavigator() {
       <Stack.Screen name="Events" component={EventsScreen} />
       <Stack.Screen name="Referral" component={ReferralScreen} />
       <Stack.Screen name="Loyalty" component={LoyaltyScreen} />
+      <Stack.Screen name="CustomerSales" component={CustomerSalesScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }
