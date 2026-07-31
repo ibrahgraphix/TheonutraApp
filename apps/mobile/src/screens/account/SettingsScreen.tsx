@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
   Alert,
