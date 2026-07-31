@@ -16,6 +16,7 @@ export interface LoginResult {
     payment_method?: string;
     payment_full_name?: string;
     payment_account_number?: string;
+    currencyCode?: string;
   };
 }
 
@@ -63,7 +64,8 @@ export async function login(
       payment_full_name,
       payment_account_number,
       countries (
-        name
+        name,
+        currency_code
       )
     `)
     .eq('id', userId)
@@ -81,6 +83,8 @@ export async function login(
 
   const countryName =
     (profile.countries as { name?: string } | null)?.name ?? '';
+  const currencyCode =
+    (profile.countries as { currency_code?: string } | null)?.currency_code ?? 'TZS';
 
   // Step 5 — return token + safe fields only
   return {
@@ -97,6 +101,7 @@ export async function login(
       payment_method: profile.payment_method as string | undefined,
       payment_full_name: profile.payment_full_name as string | undefined,
       payment_account_number: profile.payment_account_number as string | undefined,
+      currencyCode: currencyCode,
     },
   };
 }

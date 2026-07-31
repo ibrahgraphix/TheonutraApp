@@ -36,7 +36,7 @@ function getApiBaseUrl() {
 
 const API_BASE_URL = getApiBaseUrl();
 
-const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms = 400) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function parseApiError(body: string, fallback: string): string {
   const trimmed = body?.trim();
@@ -88,6 +88,7 @@ export async function login(
       payment_method?: string;
       payment_full_name?: string;
       payment_account_number?: string;
+      currencyCode?: string;
     };
   };
 
@@ -108,6 +109,7 @@ export async function login(
       payment_method: data.user.payment_method,
       payment_full_name: data.user.payment_full_name,
       payment_account_number: data.user.payment_account_number,
+      currencyCode: data.user.currencyCode,
     }
   };
 }
