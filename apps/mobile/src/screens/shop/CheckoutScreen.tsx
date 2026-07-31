@@ -40,7 +40,7 @@ const mobileSchema = z.object({
     .regex(/^[+\d\s-]+$/, 'Invalid phone number format'),
 });
 
-const MOBILE_PROVIDERS: MobileMoneyProvider[] = ['M-Pesa', 'Tigo Pesa', 'Airtel Money', 'Mixx by Yas'];
+const MOBILE_PROVIDERS: MobileMoneyProvider[] = ['M-Pesa', 'Tigo Pesa', 'Airtel Money', 'Mixx by Yas', 'HaloPesa'];
 
 export function CheckoutScreen() {
   const navigation = useNavigation<NavigationProp>();

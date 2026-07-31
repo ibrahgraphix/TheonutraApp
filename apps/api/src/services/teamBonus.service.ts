@@ -297,7 +297,7 @@ export async function runTeamBonusBatch(
       continue;
     }
 
-    // Create commission entries for each level
+    // Create commission entries for each level with pending status
     for (const levelBreakdown of summary.breakdown) {
       if (levelBreakdown.bonusAmount <= 0) continue;
 
@@ -309,6 +309,7 @@ export async function runTeamBonusBatch(
           amount: levelBreakdown.bonusAmount,
           level: levelBreakdown.level,
           source_distributor_id: distId, // Self as source for team bonus
+          status: 'pending', // Changed from immediate credit to pending
           created_at: new Date().toISOString(),
         });
 
@@ -316,17 +317,8 @@ export async function runTeamBonusBatch(
         throw new ApiError(500, `Failed to create team bonus commission: ${insertError.message}`);
       }
 
-      // Send notification for this level's bonus
-      try {
-        await notificationService.notifyTeamBonusEarned(
-          distId,
-          levelBreakdown.bonusAmount,
-          period,
-        );
-      } catch (notifError) {
-        console.error(`❌ Failed to send team bonus notification for ${distId}: ${notifError}`);
-        // Don't throw - notification failure shouldn't break the bonus creation
-      }
+      // No notification sent - notification will be sent when approved
+      // No wallet credit - credit will be made when approved
     }
 
     processed++;

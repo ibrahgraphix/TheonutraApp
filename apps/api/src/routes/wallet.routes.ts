@@ -12,6 +12,8 @@ import {
   approveWithdrawalHandler,
   rejectWithdrawalHandler,
   markWithdrawalPaidHandler,
+  markWithdrawalFailedHandler,
+  cancelWithdrawalHandler,
 } from '../controllers/wallet.controller.js';
 
 const router = Router();
@@ -43,5 +45,11 @@ router.put('/withdrawals/:id/reject', requireStaff, rejectWithdrawalHandler);
 
 // PUT /api/wallet/withdrawals/:id/mark-paid — mark approved request as paid
 router.put('/withdrawals/:id/mark-paid', requireStaff, markWithdrawalPaidHandler);
+
+// PUT /api/wallet/withdrawals/:id/mark-failed — mark request as failed (staff only)
+router.put('/withdrawals/:id/mark-failed', requireStaff, markWithdrawalFailedHandler);
+
+// PUT /api/wallet/withdrawals/:id/cancel — cancel request (distributor or staff)
+router.put('/withdrawals/:id/cancel', cancelWithdrawalHandler);
 
 export default router;

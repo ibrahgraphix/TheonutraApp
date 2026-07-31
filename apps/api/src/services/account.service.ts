@@ -97,3 +97,58 @@ export async function deactivateOwnAccount(userId: string): Promise<void> {
   // without additional infrastructure. The user will be blocked on their next
   // login attempt since is_active is checked in the login flow.
 }
+
+/**
+ * Gets the user's payment method details.
+ *
+ * @param userId UUID of the user
+ */
+export async function getPaymentMethod(userId: string): Promise<{
+  payment_method: string | null;
+  payment_full_name: string | null;
+  payment_account_number: string | null;
+}> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('payment_method, payment_full_name, payment_account_number')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    throw new ApiError(500, `Failed to fetch payment method: ${error.message}`);
+  }
+
+  return {
+    payment_method: data.payment_method,
+    payment_full_name: data.payment_full_name,
+    payment_account_number: data.payment_account_number,
+  };
+}
+
+/**
+ * Updates the user's payment method details.
+ *
+ * @param userId UUID of the user
+ * @param paymentMethod Payment method (M-Pesa, Airtel Money, etc.)
+ * @param fullName Full name for payments
+ * @param accountNumber Account number or phone number
+ */
+export async function updatePaymentMethod(
+  userId: string,
+  paymentMethod: string,
+  fullName: string,
+  accountNumber: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      payment_method: paymentMethod,
+      payment_full_name: fullName,
+      payment_account_number: accountNumber,
+    })
+    .eq('id', userId);
+
+  if (error) {
+    throw new ApiError(500, `Failed to update payment method: ${error.message}`);
+  }
+}

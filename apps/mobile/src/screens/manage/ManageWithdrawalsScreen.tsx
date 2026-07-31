@@ -37,6 +37,8 @@ const STATUS_VARIANT: Record<string, 'success' | 'neutral' | 'error' | 'secondar
   approved: 'neutral',
   paid: 'success',
   rejected: 'error',
+  failed: 'error',
+  cancelled: 'secondary',
 };
 
 export function ManageWithdrawalsScreen() {
@@ -132,6 +134,55 @@ export function ManageWithdrawalsScreen() {
     );
   };
 
+  const handleMarkFailed = (req: WithdrawalRequest) => {
+    Alert.prompt(
+      'Mark as Failed',
+      'Enter failure reason (visible to distributor):',
+      async (notes) => {
+        if (!notes?.trim()) {
+          Alert.alert('Required', 'Please provide a failure reason.');
+          return;
+        }
+        setProcessingId(req.id);
+        try {
+          // This should be replaced with actual API call
+          // await markWithdrawalFailed(req.id, notes.trim());
+          await load();
+        } catch (e) {
+          Alert.alert('Error', e instanceof Error ? e.message : 'Failed to mark as failed.');
+        } finally {
+          setProcessingId(null);
+        }
+      },
+      'plain-text',
+    );
+  };
+
+  const handleCancel = (req: WithdrawalRequest) => {
+    Alert.alert(
+      'Cancel Withdrawal',
+      `Cancel withdrawal of ${formatCurrency(req.amount, req.currencyCode || 'USD')} for ${req.profiles?.full_name ?? req.distributor_id}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            setProcessingId(req.id);
+            try {
+              // This should be replaced with actual API call
+              // await cancelWithdrawal(req.id);
+              await load();
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to cancel.');
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const TABS: { key: FilterTab; label: string }[] = [
     { key: 'pending', label: 'Pending' },
     { key: 'approved', label: 'Approved' },
@@ -205,16 +256,32 @@ export function ManageWithdrawalsScreen() {
                     title="Reject"
                     variant="outline"
                   />
+                  <Button
+                    loading={processingId === item.id}
+                    onPress={() => handleCancel(item)}
+                    style={styles.actionBtn}
+                    title="Cancel"
+                    variant="ghost"
+                  />
                 </View>
               )}
 
               {item.status === 'approved' && (
-                <Button
-                  loading={processingId === item.id}
-                  onPress={() => handleMarkPaid(item)}
-                  style={styles.markPaidBtn}
-                  title="✅ Mark as Paid"
-                />
+                <View style={styles.actions}>
+                  <Button
+                    loading={processingId === item.id}
+                    onPress={() => handleMarkPaid(item)}
+                    style={[styles.actionBtn, styles.approveBtn]}
+                    title="Mark Paid"
+                  />
+                  <Button
+                    loading={processingId === item.id}
+                    onPress={() => handleMarkFailed(item)}
+                    style={styles.actionBtn}
+                    title="Mark Failed"
+                    variant="outline"
+                  />
+                </View>
               )}
             </Card>
           )}

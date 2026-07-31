@@ -306,6 +306,67 @@ export async function runMonthlyRequalification(
         if (!opbError) opbGenerated++;
       }
 
+      // Generate leadership bonus if qualified
+      if (leadershipRank) {
+        // Check if leadership bonus already exists for this period
+        const { data: existingLeadershipBonus } = await supabase
+          .from('leadership_bonuses')
+          .select('id')
+          .eq('distributor_id', dist.id)
+          .eq('period', period)
+          .maybeSingle();
+
+        if (!existingLeadershipBonus) {
+          // Calculate leadership bonus amount (could be based on rank or fixed amount)
+          // For now, using a simple formula based on rank level
+          const leadershipBonusAmount = leadershipRank.level_order * 10000; // Example formula
+
+          const { error: leadershipError } = await supabase
+            .from('leadership_bonuses')
+            .insert({
+              distributor_id: dist.id,
+              period,
+              leadership_rank_id: leadershipRank.id,
+              bonus_amount: leadershipBonusAmount,
+              status: 'pending',
+            });
+
+          if (!leadershipError) {
+            console.log(`✅ Leadership bonus generated for ${dist.id}: ${leadershipBonusAmount}`);
+          }
+        }
+      }
+
+      // Generate rank bonus if qualified (above minimum rank)
+      if (activeStatusRank.level_order > 1) {
+        // Check if rank bonus already exists for this period
+        const { data: existingRankBonus } = await supabase
+          .from('rank_bonuses')
+          .select('id')
+          .eq('distributor_id', dist.id)
+          .eq('period', period)
+          .maybeSingle();
+
+        if (!existingRankBonus) {
+          // Calculate rank bonus based on rank level
+          const rankBonusAmount = (activeStatusRank.level_order - 1) * 5000; // Example formula
+
+          const { error: rankError } = await supabase
+            .from('rank_bonuses')
+            .insert({
+              distributor_id: dist.id,
+              period,
+              active_status_rank_id: activeStatusRank.id,
+              bonus_amount: rankBonusAmount,
+              status: 'pending',
+            });
+
+          if (!rankError) {
+            console.log(`✅ Rank bonus generated for ${dist.id}: ${rankBonusAmount}`);
+          }
+        }
+      }
+
       if (wasDemoted) {
         demoted++;
         try {
@@ -406,4 +467,271 @@ export async function listPendingOPBBonuses(): Promise<any[]> {
 
   if (error) throw new ApiError(500, `Failed to fetch pending OPB bonuses: ${error.message}`);
   return data ?? [];
+}
+
+/**
+ * Lists all pending commissions (referral/direct, team bonus) for staff review
+ */
+export async function listPendingCommissions(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('commissions')
+    .select(`
+      *,
+      profiles!commissions_beneficiary_id_fkey ( full_name, distributor_id ),
+      sales (
+        id,
+        amount,
+        order_id
+      )
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) throw new ApiError(500, `Failed to fetch pending commissions: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Approves a pending commission and credits the wallet
+ */
+export async function approveCommission(commissionId: string, staffId: string): Promise<void> {
+  const { data: commission, error: fetchError } = await supabase
+    .from('commissions')
+    .select('*')
+    .eq('id', commissionId)
+    .single();
+
+  if (fetchError || !commission) throw new ApiError(404, 'Commission not found');
+  if (commission.status !== 'pending') throw new ApiError(422, 'Commission is not pending');
+
+  const { error: updateError } = await supabase
+    .from('commissions')
+    .update({ 
+      status: 'approved', 
+      approved_by: staffId, 
+      approved_at: new Date().toISOString() 
+    })
+    .eq('id', commissionId);
+
+  if (updateError) throw new ApiError(500, `Failed to approve commission: ${updateError.message}`);
+
+  // Credit wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', commission.beneficiary_id)
+    .maybeSingle();
+
+  const currentBalance = Number(wallet?.balance ?? 0);
+  const newBalance = currentBalance + Number(commission.amount);
+
+  await supabase
+    .from('wallets')
+    .upsert({ distributor_id: commission.beneficiary_id, balance: newBalance }, { onConflict: 'distributor_id' });
+
+  await supabase.from('wallet_transactions').insert({
+    distributor_id: commission.beneficiary_id,
+    type: 'credit',
+    source_type: commission.bonus_type === 'team_bonus' ? 'team_bonus' : 'commission',
+    source_id: commission.id,
+    amount: commission.amount,
+    balance_after: newBalance,
+  });
+
+  // Send notification
+  try {
+    const bonusType = commission.bonus_type === 'team_bonus' ? 'Team Bonus' : 'Referral Commission';
+    await notificationService.createNotification(
+      commission.beneficiary_id,
+      'system',
+      `${bonusType} Approved`,
+      `Your ${bonusType.toLowerCase()} of ${Number(commission.amount).toFixed(2)} has been approved and credited to your wallet.`,
+      { amount: commission.amount, type: commission.bonus_type },
+    );
+  } catch {
+    // ignore notification errors
+  }
+}
+
+/**
+ * Rejects a pending commission
+ */
+export async function rejectCommission(commissionId: string, staffId: string): Promise<void> {
+  const { error } = await supabase
+    .from('commissions')
+    .update({ 
+      status: 'rejected', 
+      approved_by: staffId, 
+      approved_at: new Date().toISOString() 
+    })
+    .eq('id', commissionId)
+    .eq('status', 'pending');
+
+  if (error) throw new ApiError(500, `Failed to reject commission: ${error.message}`);
+}
+
+/**
+ * Lists pending leadership bonuses
+ */
+export async function listPendingLeadershipBonuses(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('leadership_bonuses')
+    .select(`*, profiles!leadership_bonuses_distributor_id_fkey ( full_name, distributor_id )`)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) throw new ApiError(500, `Failed to fetch pending leadership bonuses: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Approves a pending leadership bonus
+ */
+export async function approveLeadershipBonus(bonusId: string, staffId: string): Promise<void> {
+  const { data: bonus, error: fetchError } = await supabase
+    .from('leadership_bonuses')
+    .select('*')
+    .eq('id', bonusId)
+    .single();
+
+  if (fetchError || !bonus) throw new ApiError(404, 'Leadership bonus not found');
+  if (bonus.status !== 'pending') throw new ApiError(422, 'Leadership bonus is not pending');
+
+  const { error: updateError } = await supabase
+    .from('leadership_bonuses')
+    .update({ status: 'approved', approved_by: staffId, approved_at: new Date().toISOString() })
+    .eq('id', bonusId);
+
+  if (updateError) throw new ApiError(500, `Failed to approve leadership bonus: ${updateError.message}`);
+
+  // Credit wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', bonus.distributor_id)
+    .maybeSingle();
+
+  const currentBalance = Number(wallet?.balance ?? 0);
+  const newBalance = currentBalance + Number(bonus.bonus_amount);
+
+  await supabase
+    .from('wallets')
+    .upsert({ distributor_id: bonus.distributor_id, balance: newBalance }, { onConflict: 'distributor_id' });
+
+  await supabase.from('wallet_transactions').insert({
+    distributor_id: bonus.distributor_id,
+    type: 'credit',
+    source_type: 'leadership_bonus',
+    source_id: bonus.id,
+    amount: bonus.bonus_amount,
+    balance_after: newBalance,
+  });
+
+  try {
+    await notificationService.createNotification(
+      bonus.distributor_id,
+      'system',
+      'Leadership Bonus Paid',
+      `Your Leadership Bonus of ${Number(bonus.bonus_amount).toFixed(2)} for ${bonus.period} has been paid.`,
+      { period: bonus.period, amount: bonus.bonus_amount },
+    );
+  } catch {
+    // ignore notification errors
+  }
+}
+
+/**
+ * Rejects a pending leadership bonus
+ */
+export async function rejectLeadershipBonus(bonusId: string, staffId: string): Promise<void> {
+  const { error } = await supabase
+    .from('leadership_bonuses')
+    .update({ status: 'rejected', approved_by: staffId, approved_at: new Date().toISOString() })
+    .eq('id', bonusId)
+    .eq('status', 'pending');
+
+  if (error) throw new ApiError(500, `Failed to reject leadership bonus: ${error.message}`);
+}
+
+/**
+ * Lists pending rank bonuses
+ */
+export async function listPendingRankBonuses(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('rank_bonuses')
+    .select(`*, profiles!rank_bonuses_distributor_id_fkey ( full_name, distributor_id )`)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) throw new ApiError(500, `Failed to fetch pending rank bonuses: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Approves a pending rank bonus
+ */
+export async function approveRankBonus(bonusId: string, staffId: string): Promise<void> {
+  const { data: bonus, error: fetchError } = await supabase
+    .from('rank_bonuses')
+    .select('*')
+    .eq('id', bonusId)
+    .single();
+
+  if (fetchError || !bonus) throw new ApiError(404, 'Rank bonus not found');
+  if (bonus.status !== 'pending') throw new ApiError(422, 'Rank bonus is not pending');
+
+  const { error: updateError } = await supabase
+    .from('rank_bonuses')
+    .update({ status: 'approved', approved_by: staffId, approved_at: new Date().toISOString() })
+    .eq('id', bonusId);
+
+  if (updateError) throw new ApiError(500, `Failed to approve rank bonus: ${updateError.message}`);
+
+  // Credit wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', bonus.distributor_id)
+    .maybeSingle();
+
+  const currentBalance = Number(wallet?.balance ?? 0);
+  const newBalance = currentBalance + Number(bonus.bonus_amount);
+
+  await supabase
+    .from('wallets')
+    .upsert({ distributor_id: bonus.distributor_id, balance: newBalance }, { onConflict: 'distributor_id' });
+
+  await supabase.from('wallet_transactions').insert({
+    distributor_id: bonus.distributor_id,
+    type: 'credit',
+    source_type: 'rank_bonus',
+    source_id: bonus.id,
+    amount: bonus.bonus_amount,
+    balance_after: newBalance,
+  });
+
+  try {
+    await notificationService.createNotification(
+      bonus.distributor_id,
+      'system',
+      'Rank Bonus Paid',
+      `Your Rank Bonus of ${Number(bonus.bonus_amount).toFixed(2)} for ${bonus.period} has been paid.`,
+      { period: bonus.period, amount: bonus.bonus_amount },
+    );
+  } catch {
+    // ignore notification errors
+  }
+}
+
+/**
+ * Rejects a pending rank bonus
+ */
+export async function rejectRankBonus(bonusId: string, staffId: string): Promise<void> {
+  const { error } = await supabase
+    .from('rank_bonuses')
+    .update({ status: 'rejected', approved_by: staffId, approved_at: new Date().toISOString() })
+    .eq('id', bonusId)
+    .eq('status', 'pending');
+
+  if (error) throw new ApiError(500, `Failed to reject rank bonus: ${error.message}`);
 }

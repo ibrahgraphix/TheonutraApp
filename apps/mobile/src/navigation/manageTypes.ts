@@ -24,4 +24,5 @@ export type ManageStackParamList = {
   AddEditEvent: { eventId?: string };
   ManageKyc: undefined;
   CompanyAnalytics: undefined;
+  ManageOPB: undefined;
 };

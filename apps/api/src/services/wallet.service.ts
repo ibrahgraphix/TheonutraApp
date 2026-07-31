@@ -27,7 +27,7 @@ export interface WithdrawalRequest {
   amount: number;
   method: 'bank' | 'mobile_money';
   payout_details: string;
-  status: 'pending' | 'approved' | 'rejected' | 'paid';
+  status: 'pending' | 'approved' | 'rejected' | 'paid' | 'failed' | 'cancelled';
   requested_at: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
@@ -517,5 +517,149 @@ export async function markWithdrawalPaid(requestId: string, reviewedBy: string):
   } catch (notifError) {
     console.error(`❌ Failed to send withdrawal paid notification: ${notifError}`);
     // Don't throw - notification failure shouldn't break the update
+  }
+}
+
+/**
+ * Marks a withdrawal request as failed (staff only).
+ * Used when payout attempt doesn't go through.
+ */
+export async function markWithdrawalFailed(requestId: string, reviewedBy: string, notes?: string): Promise<void> {
+  // Fetch request details before marking as failed for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('status, distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
+  // Can fail from approved or paid status (if payment failed after being marked paid)
+  if (request.status !== 'approved' && request.status !== 'paid') {
+    throw new ApiError(400, 'Withdrawal request must be approved or paid first');
+  }
+
+  const { error: updateError } = await supabase
+    .from('withdrawal_requests')
+    .update({
+      status: 'failed',
+      reviewed_by: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+      notes: notes || null,
+    })
+    .eq('id', requestId);
+
+  if (updateError) {
+    throw new ApiError(500, `Failed to mark withdrawal request as failed: ${updateError.message}`);
+  }
+
+  // Refund the amount back to wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', request.distributor_id)
+    .maybeSingle();
+
+  const currentBalance = Number(wallet?.balance ?? 0);
+  const newBalance = currentBalance + Number(request.amount);
+
+  await supabase
+    .from('wallets')
+    .upsert({ distributor_id: request.distributor_id, balance: newBalance }, { onConflict: 'distributor_id' });
+
+  await supabase.from('wallet_transactions').insert({
+    distributor_id: request.distributor_id,
+    type: 'credit',
+    source_type: 'withdrawal_refund',
+    source_id: requestId,
+    amount: request.amount,
+    balance_after: newBalance,
+  });
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'failed',
+      Number(request.amount),
+      requestId,
+      notes,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal failed notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the update
+  }
+}
+
+/**
+ * Cancels a withdrawal request (distributor or staff).
+ * Used when cancellation happens before processing.
+ */
+export async function cancelWithdrawal(requestId: string, userId: string): Promise<void> {
+  // Fetch request details before cancelling for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('status, distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
+  // Can only cancel pending requests
+  if (request.status !== 'pending') {
+    throw new ApiError(400, 'Can only cancel pending withdrawal requests');
+  }
+
+  const { error: updateError } = await supabase
+    .from('withdrawal_requests')
+    .update({
+      status: 'cancelled',
+      reviewed_by: userId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', requestId);
+
+  if (updateError) {
+    throw new ApiError(500, `Failed to cancel withdrawal request: ${updateError.message}`);
+  }
+
+  // Refund the amount back to wallet
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', request.distributor_id)
+    .maybeSingle();
+
+  const currentBalance = Number(wallet?.balance ?? 0);
+  const newBalance = currentBalance + Number(request.amount);
+
+  await supabase
+    .from('wallets')
+    .upsert({ distributor_id: request.distributor_id, balance: newBalance }, { onConflict: 'distributor_id' });
+
+  await supabase.from('wallet_transactions').insert({
+    distributor_id: request.distributor_id,
+    type: 'credit',
+    source_type: 'withdrawal_refund',
+    source_id: requestId,
+    amount: request.amount,
+    balance_after: newBalance,
+  });
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'cancelled',
+      Number(request.amount),
+      requestId,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal cancelled notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the cancellation
   }
 }

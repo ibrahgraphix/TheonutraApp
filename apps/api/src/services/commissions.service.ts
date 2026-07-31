@@ -79,7 +79,7 @@ export async function createSaleForOrder(orderId: string): Promise<void> {
   // 4. Calculate commission amount
   const commissionAmount = order.total_amount * (env.COMMISSION_PERCENTAGE / 100);
 
-  // 5. Insert commission for the recruiter (level 1)
+  // 5. Insert commission for the recruiter (level 1) with pending status
   const { error: commissionError } = await supabase
     .from('commissions')
     .insert({
@@ -87,6 +87,7 @@ export async function createSaleForOrder(orderId: string): Promise<void> {
       beneficiary_id: buyerProfile.referred_by,
       level: 1,
       amount: commissionAmount,
+      status: 'pending', // Changed from immediate credit to pending
     });
 
   if (commissionError) {
@@ -97,19 +98,10 @@ export async function createSaleForOrder(orderId: string): Promise<void> {
     return;
   }
 
-  console.log(`✅ Commission created: ${commissionAmount} for beneficiary ${buyerProfile.referred_by} (level 1)`);
+  console.log(`✅ Commission created (pending): ${commissionAmount} for beneficiary ${buyerProfile.referred_by} (level 1)`);
 
-  // Send notification to the beneficiary
-  try {
-    await notificationService.notifyCommissionEarned(
-      buyerProfile.referred_by,
-      commissionAmount,
-      sale.id,
-    );
-  } catch (notifError) {
-    console.error(`❌ Failed to send commission notification: ${notifError}`);
-    // Don't throw - notification failure shouldn't break the commission
-  }
+  // No notification sent - notification will be sent when approved
+  // No wallet credit - credit will be made when approved
 }
 
 /**

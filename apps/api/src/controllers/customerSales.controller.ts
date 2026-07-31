@@ -70,3 +70,26 @@ export async function getMyCustomerSalesSummaryHandler(
     next(err);
   }
 }
+
+/**
+ * GET /api/customer-sales/retail-profit-report?month=2024-01
+ * Returns detailed retail profit report for the authenticated distributor.
+ * Report-only - does not affect wallet balance.
+ */
+export async function getRetailProfitReportHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const month = req.query['month'] as string | undefined;
+    const report = await customerSalesService.getRetailProfitReport(req.user.id, month);
+    res.status(200).json(report);
+  } catch (err) {
+    next(err);
+  }
+}

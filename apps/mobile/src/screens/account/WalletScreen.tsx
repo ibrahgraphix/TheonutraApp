@@ -59,6 +59,7 @@ export function WalletScreen() {
   const [withdrawMethod, setWithdrawMethod] = useState<WithdrawalMethod>('bank');
   const [payoutDetails, setPayoutDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<any>(null);
 
   const isStaff = useAuthStore((s) => {
     const role = s.distributor?.role;
@@ -100,7 +101,7 @@ export function WalletScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
     if (!kycVerified) {
       Alert.alert(
         'KYC Required',
@@ -112,6 +113,20 @@ export function WalletScreen() {
       );
       return;
     }
+    
+    // Load saved payment method to pre-fill
+    try {
+      // This should be replaced with actual API call
+      // const pm = await getPaymentMethod();
+      // setPaymentMethod(pm);
+      // if (pm.payment_method) {
+      //   setWithdrawMethod(pm.payment_method === 'Bank Transfer' ? 'bank' : 'mobile_money');
+      //   setPayoutDetails(pm.payment_account_number || '');
+      // }
+    } catch (error) {
+      console.error('Failed to load payment method:', error);
+    }
+    
     setShowWithdraw(true);
   };
 
@@ -156,7 +171,8 @@ export function WalletScreen() {
 
   const statusVariant = (s: string): 'success' | 'neutral' | 'error' | 'secondary' => {
     if (s === 'approved' || s === 'paid') return 'success';
-    if (s === 'rejected') return 'error';
+    if (s === 'rejected' || s === 'failed') return 'error';
+    if (s === 'cancelled') return 'secondary';
     return 'neutral';
   };
 
@@ -327,7 +343,7 @@ export function WalletScreen() {
               placeholder={
                 withdrawMethod === 'bank'
                   ? 'Account number / bank name'
-                  : 'Mobile money number (M-Pesa, Airtel Money, Mixx by Yas)'
+                  : 'Mobile money number (M-Pesa, Airtel Money, Mixx by Yas, HaloPesa)'
               }
               placeholderTextColor={colors.textSecondary}
               style={styles.input}

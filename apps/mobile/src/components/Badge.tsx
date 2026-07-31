@@ -1,17 +1,18 @@
-import { StyleSheet, Text, View, type ViewProps } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '../theme';
 
-type BadgeVariant = 'primary' | 'secondary' | 'neutral' | 'success';
+type BadgeVariant = 'primary' | 'secondary' | 'neutral' | 'success' | 'error';
 
-interface BadgeProps extends ViewProps {
+interface BadgeProps {
   label: string;
   variant?: BadgeVariant;
+  style?: any;
 }
 
-export function Badge({ label, variant = 'primary', style, ...props }: BadgeProps) {
+export function Badge({ label, variant = 'primary', style }: BadgeProps) {
   return (
-    <View style={[styles.base, styles[variant], style]} {...props}>
+    <View style={[styles.base, styles[variant], style]}>
       <Text style={[styles.text, styles[`${variant}Text`]]}>{label}</Text>
     </View>
   );
@@ -36,6 +37,9 @@ const styles = StyleSheet.create({
   success: {
     backgroundColor: '#DCFCE7',
   },
+  error: {
+    backgroundColor: '#FEE2E2',
+  },
   text: {
     ...typography.caption,
     fontWeight: '600',
@@ -51,5 +55,8 @@ const styles = StyleSheet.create({
   },
   successText: {
     color: colors.success,
+  },
+  errorText: {
+    color: colors.error,
   },
 });

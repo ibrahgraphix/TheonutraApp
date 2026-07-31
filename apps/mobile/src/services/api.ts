@@ -466,6 +466,7 @@ const MOBILE_PROVIDER_SLUG: Record<string, string> = {
   'Tigo Pesa':    'tigopesa',
   'Airtel Money': 'airtelmoney',
   'Mixx by Yas':  'airtelmoney', // Mixx is Airtel's brand; map to nearest supported slug
+  'HaloPesa':     'halopesa',
 };
 
 /**

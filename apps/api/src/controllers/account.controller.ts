@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as accountService from '../services/account.service.js';
-import { ChangePasswordInput, ChangePhoneNumberInput } from '../schemas/account.schema.js';
+import { ChangePasswordInput, ChangePhoneNumberInput, PaymentMethodInput } from '../schemas/account.schema.js';
 import { ApiError } from '../middleware/error.middleware.js';
 
 /**
@@ -63,6 +63,54 @@ export async function deactivateOwnAccountHandler(
 
     await accountService.deactivateOwnAccount(req.user.id);
     res.status(200).json({ message: 'Account deactivated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /account/payment-method
+ * Returns the user's payment method details.
+ */
+export async function getPaymentMethodHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const paymentMethod = await accountService.getPaymentMethod(req.user.id);
+    res.status(200).json(paymentMethod);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /account/payment-method
+ * Updates the user's payment method details.
+ */
+export async function updatePaymentMethodHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+
+    const input = req.body as PaymentMethodInput;
+    await accountService.updatePaymentMethod(
+      req.user.id,
+      input.payment_method,
+      input.payment_full_name,
+      input.payment_account_number,
+    );
+    res.status(200).json({ message: 'Payment method updated successfully' });
   } catch (err) {
     next(err);
   }

@@ -144,25 +144,10 @@ export async function logCustomerSale(
     throw new ApiError(500, `Failed to create customer sale items: ${itemsError.message}`);
   }
 
-  // 6. Insert retail_profit commission
-  const { error: commissionError } = await supabase
-    .from('commissions')
-    .insert({
-      beneficiary_id: distributorId,
-      type: 'retail_profit',
-      amount: totalRetailProfit,
-      source_id: customerSale.id,
-      source_type: 'customer_sale',
-    });
+  // Retail profit is now report-only - no wallet credit
+  // The retail profit is stored in the customer_sale_items and can be calculated from the price difference
 
-  if (commissionError) {
-    // Rollback: delete items and customer sale
-    await supabase.from('customer_sale_items').delete().eq('customer_sale_id', customerSale.id);
-    await supabase.from('customer_sales').delete().eq('id', customerSale.id);
-    throw new ApiError(500, `Failed to create retail profit commission: ${commissionError.message}`);
-  }
-
-  // 7. Fetch the created items for response
+  // 6. Fetch the created items for response
   const { data: createdItems, error: fetchItemsError } = await supabase
     .from('customer_sale_items')
     .select('*')
@@ -295,37 +280,128 @@ export async function getMyCustomerSalesSummary(
     endStr = new Date(Date.UTC(year, m + 1, 1)).toISOString();
   }
 
-  // Get total retail profit from commissions
-  const { data: commissions, error: commissionsError } = await supabase
-    .from('commissions')
-    .select('amount')
-    .eq('beneficiary_id', distributorId)
-    .eq('type', 'retail_profit')
-    .gte('created_at', startStr)
-    .lt('created_at', endStr);
-
-  if (commissionsError) {
-    throw new ApiError(500, `Failed to fetch retail profit commissions: ${commissionsError.message}`);
-  }
-
-  const totalRetailProfit = (commissions ?? []).reduce((sum, c) => sum + Number(c.amount ?? 0), 0);
-
-  // Get total PV from customer_sales
+  // Get total retail profit from customer_sale_items (price difference)
   const { data: sales, error: salesError } = await supabase
     .from('customer_sales')
-    .select('total_pv')
+    .select(`
+      total_pv,
+      customer_sale_items (
+        quantity,
+        unit_customer_price,
+        unit_distributor_price
+      )
+    `)
     .eq('distributor_id', distributorId)
     .gte('created_at', startStr)
     .lt('created_at', endStr);
 
   if (salesError) {
-    throw new ApiError(500, `Failed to fetch customer sales PV: ${salesError.message}`);
+    throw new ApiError(500, `Failed to fetch customer sales: ${salesError.message}`);
   }
 
-  const totalPV = (sales ?? []).reduce((sum, s) => sum + Number(s.total_pv ?? 0), 0);
+  let totalRetailProfit = 0;
+  let totalPV = 0;
+
+  for (const sale of sales ?? []) {
+    totalPV += Number(sale.total_pv ?? 0);
+    
+    const items = sale.customer_sale_items as any[] ?? [];
+    for (const item of items) {
+      const profit = (Number(item.unit_customer_price) - Number(item.unit_distributor_price)) * Number(item.quantity);
+      totalRetailProfit += profit;
+    }
+  }
 
   return {
     totalRetailProfit,
     totalPV,
+  };
+}
+
+/**
+ * Returns detailed retail profit report for a distributor by period
+ * Report-only - does not affect wallet balance
+ */
+export async function getRetailProfitReport(
+  distributorId: string,
+  month?: string,
+): Promise<{ period: string; totalRetailProfit: number; totalPV: number; sales: any[] }> {
+  const now = new Date();
+  let startStr: string;
+  let endStr: string;
+  const period = month || now.toISOString().slice(0, 7); // YYYY-MM
+
+  if (month) {
+    const parts = month.split('-');
+    const year = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    startStr = new Date(Date.UTC(year, m, 1)).toISOString();
+    endStr = new Date(Date.UTC(year, m + 1, 1)).toISOString();
+  } else {
+    const year = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    startStr = new Date(Date.UTC(year, m, 1)).toISOString();
+    endStr = new Date(Date.UTC(year, m + 1, 1)).toISOString();
+  }
+
+  // Get detailed sales data with retail profit calculation
+  const { data: sales, error: salesError } = await supabase
+    .from('customer_sales')
+    .select(`
+      id,
+      customer_name,
+      customer_phone,
+      total_amount,
+      total_pv,
+      created_at,
+      customer_sale_items (
+        id,
+        product_id,
+        quantity,
+        unit_customer_price,
+        unit_distributor_price,
+        pv_at_sale
+      )
+    `)
+    .eq('distributor_id', distributorId)
+    .gte('created_at', startStr)
+    .lt('created_at', endStr)
+    .order('created_at', { ascending: false });
+
+  if (salesError) {
+    throw new ApiError(500, `Failed to fetch retail profit report: ${salesError.message}`);
+  }
+
+  let totalRetailProfit = 0;
+  let totalPV = 0;
+
+  const salesWithProfit = (sales ?? []).map((sale) => {
+    const items = sale.customer_sale_items as any[] ?? [];
+    let saleProfit = 0;
+    
+    const itemsWithProfit = items.map((item) => {
+      const profit = (Number(item.unit_customer_price) - Number(item.unit_distributor_price)) * Number(item.quantity);
+      saleProfit += profit;
+      return {
+        ...item,
+        retail_profit: profit,
+      };
+    });
+
+    totalPV += Number(sale.total_pv ?? 0);
+    totalRetailProfit += saleProfit;
+
+    return {
+      ...sale,
+      customer_sale_items: itemsWithProfit,
+      retail_profit: saleProfit,
+    };
+  });
+
+  return {
+    period,
+    totalRetailProfit,
+    totalPV,
+    sales: salesWithProfit,
   };
 }

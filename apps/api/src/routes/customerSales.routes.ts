@@ -6,6 +6,7 @@ import {
   logCustomerSaleHandler,
   listMyCustomerSalesHandler,
   getMyCustomerSalesSummaryHandler,
+  getRetailProfitReportHandler,
 } from '../controllers/customerSales.controller.js';
 
 const router = Router();
@@ -18,5 +19,8 @@ router.get('/', authMiddleware, listMyCustomerSalesHandler);
 
 // GET /api/customer-sales/summary?month=2024-01 — authenticated distributor
 router.get('/summary', authMiddleware, getMyCustomerSalesSummaryHandler);
+
+// GET /api/customer-sales/retail-profit-report?month=2024-01 — authenticated distributor
+router.get('/retail-profit-report', authMiddleware, getRetailProfitReportHandler);
 
 export default router;

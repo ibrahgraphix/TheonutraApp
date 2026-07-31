@@ -116,7 +116,7 @@ export function CustomerSalesScreen() {
         })),
       });
       setModalVisible(false);
-      Alert.alert('✅ Sale Logged', 'Your retail sale has been recorded and PV credited.', [
+      Alert.alert('✅ Sale Logged', 'Your retail sale has been recorded. Retail profit is for reporting purposes only.', [
         { text: 'OK', onPress: loadSales },
       ]);
     } catch (e) {
@@ -152,10 +152,11 @@ export function CustomerSalesScreen() {
           <Text style={styles.summaryValue}>{sales.length}</Text>
         </View>
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Retail Profit</Text>
+          <Text style={styles.summaryLabel}>Retail Profit (Report)</Text>
           <Text style={[styles.summaryValue, { color: colors.success }]}>
             {formatCurrency(totalEarnings, 'USD')}
           </Text>
+          <Text style={styles.summaryNote}>Informational only</Text>
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Total PV</Text>
@@ -365,6 +366,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: { ...typography.caption, color: colors.textSecondary },
   summaryValue: { ...typography.h3, color: colors.text },
+  summaryNote: { ...typography.caption, color: colors.textSecondary, fontSize: 10 },
   logButton: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
   loader: { marginTop: spacing.xxxl },
   list: { gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xxxl },
