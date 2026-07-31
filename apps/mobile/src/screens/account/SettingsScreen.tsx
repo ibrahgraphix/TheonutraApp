@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
   Alert,
@@ -72,7 +73,7 @@ export function SettingsScreen() {
   const [paymentMethodModal, setPaymentMethodModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [loadingPaymentMethod, setLoadingPaymentMethod] = useState(false);
+  const hasMounted = useRef(false);
 
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -91,36 +92,20 @@ export function SettingsScreen() {
       paymentFullName: distributor?.payment_full_name || '',
       paymentAccountNumber: distributor?.payment_account_number || '',
     },
+    mode: 'onChange', // Validate on change for better UX
   });
 
-  const loadPaymentMethod = useCallback(async () => {
-    if (!distributor) return;
-    setLoadingPaymentMethod(true);
-    try {
-      const data = await getPaymentMethod();
-      paymentMethodForm.reset({
-        paymentMethod: data.payment_method || 'mpesa',
-        paymentFullName: data.payment_full_name || '',
-        paymentAccountNumber: data.payment_account_number || '',
-      });
-      // Update local distributor state
-      updateDistributor({
-        ...distributor,
-        payment_method: data.payment_method,
-        payment_full_name: data.payment_full_name,
-        payment_account_number: data.payment_account_number,
-      });
-    } catch (e) {
-      // If payment method not set yet, that's okay - just use defaults
-      console.log('No payment method set yet');
-    } finally {
-      setLoadingPaymentMethod(false);
-    }
-  }, [distributor, paymentMethodForm, updateDistributor]);
-
+  // Only initialize payment method form once on mount
   useEffect(() => {
-    loadPaymentMethod();
-  }, [loadPaymentMethod]);
+    if (!hasMounted.current && distributor) {
+      paymentMethodForm.reset({
+        paymentMethod: distributor.payment_method || 'mpesa',
+        paymentFullName: distributor.payment_full_name || '',
+        paymentAccountNumber: distributor.payment_account_number || '',
+      });
+      hasMounted.current = true;
+    }
+  }, [distributor?.id]); // Only run when distributor ID changes
 
   const handlePasswordChange = passwordForm.handleSubmit(async (data) => {
     if (!distributor) return;
@@ -158,7 +143,20 @@ export function SettingsScreen() {
     setSubmitting(true);
     setSettingsError(null);
     try {
-      await updatePaymentMethod(data);
+      // Convert the display ID to the backend format
+      const methodMapping: Record<string, string> = {
+        'mpesa': 'mpesa',
+        'airtel_money': 'airtel_money', 
+        'mixx': 'mixx',
+        'halopesa': 'halopesa',
+        'bank_transfer': 'bank_transfer',
+      };
+      
+      await updatePaymentMethod({
+        payment_method: methodMapping[data.paymentMethod] || data.paymentMethod,
+        payment_full_name: data.paymentFullName,
+        payment_account_number: data.paymentAccountNumber,
+      });
       // Update the local distributor state with the new payment method
       updateDistributor({
         ...distributor,
@@ -213,9 +211,7 @@ export function SettingsScreen() {
             <View>
               <Text style={styles.rowLabel}>Payment Method</Text>
               <Text style={styles.rowValue}>
-                {loadingPaymentMethod ? (
-                  'Loading...'
-                ) : distributor.payment_method ? (
+                {distributor.payment_method ? (
                   PAYMENT_METHODS.find(m => m.id === distributor.payment_method)?.name || distributor.payment_method
                 ) : (
                   'Not set'

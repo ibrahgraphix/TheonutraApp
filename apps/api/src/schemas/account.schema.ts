@@ -10,7 +10,7 @@ export const ChangePhoneNumberSchema = z.object({
 });
 
 export const PaymentMethodSchema = z.object({
-  payment_method: z.enum(['M-Pesa', 'Airtel Money', 'Mixx by Yas', 'HaloPesa', 'Bank Transfer']),
+  payment_method: z.enum(['mpesa', 'airtel_money', 'mixx', 'halopesa', 'bank_transfer', 'M-Pesa', 'Airtel Money', 'Mixx by Yas', 'HaloPesa', 'Bank Transfer']),
   payment_full_name: z.string().min(1, 'Full name is required'),
   payment_account_number: z.string().min(1, 'Account number or phone number is required'),
 });

@@ -996,7 +996,11 @@ export async function updatePaymentMethod(data: {
       'Content-Type': 'application/json',
       Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      payment_method: data.payment_method,
+      payment_full_name: data.payment_full_name,
+      payment_account_number: data.payment_account_number,
+    }),
   });
 
   if (!response.ok) {
