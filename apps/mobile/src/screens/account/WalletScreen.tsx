@@ -26,6 +26,7 @@ import {
   getMyWithdrawals,
   requestWithdrawal,
   getMyKyc,
+  getPaymentMethod,
 } from '../../services/api';
 import type { WalletBalance, Transaction, WithdrawalRequest, WithdrawalMethod } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/format';
@@ -116,13 +117,26 @@ export function WalletScreen() {
     
     // Load saved payment method to pre-fill
     try {
-      // This should be replaced with actual API call
-      // const pm = await getPaymentMethod();
-      // setPaymentMethod(pm);
-      // if (pm.payment_method) {
-      //   setWithdrawMethod(pm.payment_method === 'Bank Transfer' ? 'bank' : 'mobile_money');
-      //   setPayoutDetails(pm.payment_account_number || '');
-      // }
+      const pm = await getPaymentMethod();
+      setPaymentMethod(pm);
+      if (pm.payment_method) {
+        // Map payment method to withdrawal method
+        const methodMapping: Record<string, 'bank' | 'mobile_money'> = {
+          'bank_transfer': 'bank',
+          'Bank Transfer': 'bank',
+          'mpesa': 'mobile_money',
+          'M-Pesa': 'mobile_money',
+          'airtel_money': 'mobile_money',
+          'Airtel Money': 'mobile_money',
+          'mixx': 'mobile_money',
+          'Mixx by Yas': 'mobile_money',
+          'halopesa': 'mobile_money',
+          'HaloPesa': 'mobile_money',
+        };
+        
+        setWithdrawMethod(methodMapping[pm.payment_method] || 'mobile_money');
+        setPayoutDetails(pm.payment_account_number || '');
+      }
     } catch (error) {
       console.error('Failed to load payment method:', error);
     }

@@ -57,10 +57,8 @@ export function CustomerSalesScreen() {
     setLoadingSales(true);
     try {
       const response = await getMyCustomerSales();
-      console.log('Customer sales response:', response);
       setSales(response.sales || []);
     } catch (e) {
-      console.error('Failed to load sales:', e);
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load sales.');
     } finally {
       setLoadingSales(false);
@@ -156,7 +154,7 @@ export function CustomerSalesScreen() {
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Retail Profit (Report)</Text>
           <Text style={[styles.summaryValue, { color: colors.success }]}>
-            {formatCurrency(totalEarnings, 'USD')}
+            {formatCurrency(totalEarnings, distributor?.currencyCode || 'USD')}
           </Text>
           <Text style={styles.summaryNote}>Informational only</Text>
         </View>
@@ -213,10 +211,10 @@ export function CustomerSalesScreen() {
                     </Text>
                     <View style={styles.lineItemRight}>
                       <Text style={styles.lineItemPrice}>
-                        {formatCurrency(li.unitCustomerPrice * li.quantity, 'USD')}
+                        {formatCurrency(li.unitCustomerPrice * li.quantity, distributor?.currencyCode || 'USD')}
                       </Text>
                       {profit > 0 && (
-                        <Text style={styles.lineItemProfit}>+{formatCurrency(profit, 'USD')}</Text>
+                        <Text style={styles.lineItemProfit}>+{formatCurrency(profit, distributor?.currencyCode || 'USD')}</Text>
                       )}
                     </View>
                   </View>
@@ -225,7 +223,7 @@ export function CustomerSalesScreen() {
 
               <View style={styles.saleTotals}>
                 <Text style={styles.saleTotalLabel}>
-                  Total {formatCurrency(item.totalAmount, 'USD')}
+                  Total {formatCurrency(item.totalAmount, distributor?.currencyCode || 'USD')}
                 </Text>
                 <Text style={styles.salePV}>{item.totalPV?.toFixed(1) ?? '0.0'} PV</Text>
               </View>
