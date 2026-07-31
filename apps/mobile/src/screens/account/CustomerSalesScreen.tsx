@@ -56,9 +56,11 @@ export function CustomerSalesScreen() {
   const loadSales = useCallback(async () => {
     setLoadingSales(true);
     try {
-      const data = await getMyCustomerSales();
-      setSales(data);
+      const response = await getMyCustomerSales();
+      console.log('Customer sales response:', response);
+      setSales(response.sales || []);
     } catch (e) {
+      console.error('Failed to load sales:', e);
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load sales.');
     } finally {
       setLoadingSales(false);

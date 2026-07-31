@@ -10,6 +10,7 @@ export interface CustomerSaleItem {
   unitCustomerPrice: number;
   unitDistributorPrice: number;
   pvAtSale: number;
+  productName?: string;
 }
 
 export interface CustomerSale {
@@ -147,10 +148,15 @@ export async function logCustomerSale(
   // Retail profit is now report-only - no wallet credit
   // The retail profit is stored in the customer_sale_items and can be calculated from the price difference
 
-  // 6. Fetch the created items for response
+  // 6. Fetch the created items for response with product names
   const { data: createdItems, error: fetchItemsError } = await supabase
     .from('customer_sale_items')
-    .select('*')
+    .select(`
+      *,
+      products!inner (
+        name
+      )
+    `)
     .eq('customer_sale_id', customerSale.id);
 
   if (fetchItemsError) {
@@ -174,6 +180,7 @@ export async function logCustomerSale(
       unitCustomerPrice: Number(item.unit_customer_price),
       unitDistributorPrice: Number(item.unit_distributor_price),
       pvAtSale: Number(item.pv_at_sale),
+      productName: (item.products as any)?.name || 'Unknown Product',
     })),
   };
 }
@@ -217,7 +224,10 @@ export async function listMyCustomerSales(
         quantity,
         unit_customer_price,
         unit_distributor_price,
-        pv_at_sale
+        pv_at_sale,
+        products!inner (
+          name
+        )
       )
     `)
     .eq('distributor_id', distributorId)
@@ -245,6 +255,7 @@ export async function listMyCustomerSales(
       unitCustomerPrice: Number(item.unit_customer_price),
       unitDistributorPrice: Number(item.unit_distributor_price),
       pvAtSale: Number(item.pv_at_sale),
+      productName: item.products?.name || 'Unknown Product',
     })),
   }));
 
