@@ -94,7 +94,9 @@ export function ManageCommissionsScreen() {
               <Text style={styles.name}>{item.profiles?.full_name ?? 'Unknown'}</Text>
               <Text style={styles.meta}>{item.profiles?.distributor_id ?? 'N/A'}</Text>
               <Text style={styles.type}>{getBonusTypeLabel(item.bonus_type || 'referral')}</Text>
-              <Text style={styles.amount}>{formatCurrency(Number(item.amount), 'USD')}</Text>
+              <Text style={styles.amount}>
+                {formatCurrency(Number(item.amount), item.currencyCode || 'TZS')}
+              </Text>
               {item.level && (
                 <Text style={styles.detail}>Level {item.level}</Text>
               )}

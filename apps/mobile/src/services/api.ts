@@ -1315,12 +1315,13 @@ export type { ProductCountryPrice };
 
 export function getCurrencyForCountry(country: string): string {
   const map: Record<string, string> = {
+    Tanzania: 'TZS',
     Nigeria: 'NGN',
     Ghana: 'GHS',
     Kenya: 'KES',
     'South Africa': 'ZAR',
   };
-  return map[country] ?? 'USD';
+  return map[country] ?? 'TZS';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

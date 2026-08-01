@@ -494,12 +494,23 @@ export async function rejectOPBBonus(opbId: string, staffId: string): Promise<vo
 export async function listPendingOPBBonuses(): Promise<any[]> {
   const { data, error } = await supabase
     .from('opb_bonuses')
-    .select(`*, profiles!opb_bonuses_distributor_id_fkey ( full_name, distributor_id )`)
+    .select(`
+      *,
+      profiles!opb_bonuses_distributor_id_fkey (
+        full_name,
+        distributor_id,
+        countries ( currency_code )
+      )
+    `)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
 
   if (error) throw new ApiError(500, `Failed to fetch pending OPB bonuses: ${error.message}`);
-  return data ?? [];
+
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    currencyCode: row.profiles?.countries?.currency_code || 'TZS',
+  }));
 }
 
 /**
@@ -510,7 +521,11 @@ export async function listPendingCommissions(): Promise<any[]> {
     .from('commissions')
     .select(`
       *,
-      profiles!commissions_beneficiary_id_fkey ( full_name, distributor_id ),
+      profiles!commissions_beneficiary_id_fkey (
+        full_name,
+        distributor_id,
+        countries ( currency_code )
+      ),
       sales (
         id,
         amount,
@@ -521,7 +536,11 @@ export async function listPendingCommissions(): Promise<any[]> {
     .order('created_at', { ascending: true });
 
   if (error) throw new ApiError(500, `Failed to fetch pending commissions: ${error.message}`);
-  return data ?? [];
+
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    currencyCode: row.profiles?.countries?.currency_code || 'TZS',
+  }));
 }
 
 /**

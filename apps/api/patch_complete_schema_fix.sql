@@ -41,6 +41,9 @@ SET status = 'pending',
     bonus_type = 'referral' 
 WHERE status IS NULL OR bonus_type IS NULL;
 
+-- Disable auto-credit on insert (wallet credit happens on staff approve only)
+DROP TRIGGER IF EXISTS trg_commissions_on_insert ON public.commissions;
+
 -- =========================================================
 -- PART 2: Fix withdrawal_requests table
 -- =========================================================

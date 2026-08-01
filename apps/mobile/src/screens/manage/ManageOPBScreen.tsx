@@ -98,7 +98,9 @@ export function ManageOPBScreen() {
             <Card style={styles.card}>
               <Text style={styles.name}>{item.profiles?.full_name ?? 'Unknown'}</Text>
               <Text style={styles.meta}>{item.profiles?.distributor_id} · Period {item.period}</Text>
-              <Text style={styles.amount}>{formatCurrency(Number(item.bonus_amount), 'USD')}</Text>
+              <Text style={styles.amount}>
+                {formatCurrency(Number(item.bonus_amount), item.currencyCode || 'TZS')}
+              </Text>
               <Text style={styles.detail}>
                 QGV: {Number(item.qualified_group_volume).toLocaleString()} · {item.opb_percent}%
               </Text>

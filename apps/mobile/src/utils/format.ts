@@ -6,6 +6,7 @@ export function formatCurrency(amount: number, currency: string) {
   // Handle custom currency codes that might not be recognized by Intl
   const currencyMap: Record<string, string> = {
     'TZS': 'TZS', // Tanzanian Shilling
+    'TSH': 'TZS', // Common alias
     'NGN': 'NGN', // Nigerian Naira
     'KES': 'KES', // Kenyan Shilling
     'GHS': 'GHS', // Ghanaian Cedi
@@ -13,19 +14,21 @@ export function formatCurrency(amount: number, currency: string) {
   };
   
   const mappedCurrency = currencyMap[currency] || currency;
+  const isZeroDecimal =
+    mappedCurrency === 'NGN' || mappedCurrency === 'KES' || mappedCurrency === 'TZS';
   
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: mappedCurrency,
-      maximumFractionDigits: currency === 'NGN' || currency === 'KES' || currency === 'TZS' ? 0 : 2,
+      maximumFractionDigits: isZeroDecimal ? 0 : 2,
     }).format(amount);
   } catch {
     // Fallback for unsupported currency codes
     const formattedAmount = new Intl.NumberFormat('en-US', {
-      maximumFractionDigits: currency === 'NGN' || currency === 'KES' || currency === 'TZS' ? 0 : 2,
+      maximumFractionDigits: isZeroDecimal ? 0 : 2,
     }).format(amount);
-    return `${currency} ${formattedAmount}`;
+    return `${mappedCurrency} ${formattedAmount}`;
   }
 }
 
