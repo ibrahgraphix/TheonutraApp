@@ -19,6 +19,13 @@ export async function getMyCompensationSnapshotHandler(req: Request, res: Respon
   } catch (err) { next(err); }
 }
 
+export async function runDailyUpdateHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const result = await compensationService.runDailyUpdate();
+    res.status(200).json(result);
+  } catch (err) { next(err); }
+}
+
 export async function runMonthlyRequalificationHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { period } = req.body as { period: string };

@@ -48,7 +48,7 @@ export async function listLeadershipRanks(): Promise<LeadershipRank[]> {
  * PPV (Personal Point Value) — same PV calculation already used elsewhere
  * (order_items + customer_sale_items PV for the given month).
  */
-async function calculatePPV(distributorId: string, month?: string): Promise<number> {
+export async function calculatePPV(distributorId: string, month?: string): Promise<number> {
   const { startStr, endStr } = monthRange(month);
 
   const { data: orders, error: ordersError } = await supabase
@@ -88,7 +88,7 @@ async function calculatePPV(distributorId: string, month?: string): Promise<numb
  * CGV (Combined Group Volume) — PPV of the distributor plus PPV of their
  * ENTIRE downline (all levels), for the given month.
  */
-async function calculateCGV(distributorId: string, month?: string): Promise<number> {
+export async function calculateCGV(distributorId: string, month?: string): Promise<number> {
   const ownPPV = await calculatePPV(distributorId, month);
   const team = await getMyTeam(distributorId);
 
@@ -100,7 +100,7 @@ async function calculateCGV(distributorId: string, month?: string): Promise<numb
   return ownPPV + teamPPV;
 }
 
-function monthRange(month?: string): { startStr: string; endStr: string } {
+export function monthRange(month?: string): { startStr: string; endStr: string } {
   const now = new Date();
   let year: number, m: number;
   if (month) {
@@ -232,6 +232,39 @@ async function resolveLeadershipRank(
 function calculateOPB(cgv: number, ppv: number, opbPercent: number): number {
   const qualifiedGroupVolume = Math.max(0, cgv - ppv);
   return qualifiedGroupVolume * (opbPercent / 100);
+}
+
+/**
+ * Runs the daily PPV/CGV calculation for all active distributors
+ * This is called by the daily cron job or can be triggered manually via API
+ */
+export async function runDailyUpdate(): Promise<{ processed: number; timestamp: string }> {
+  const { data: distributors, error } = await supabase
+    .from('profiles')
+    .select('id, distributor_id, full_name')
+    .eq('is_active', true);
+
+  if (error) throw new ApiError(500, `Failed to fetch distributors: ${error.message}`);
+
+  const now = new Date();
+  const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  
+  let updatedCount = 0;
+  
+  for (const distributor of distributors || []) {
+    try {
+      const ppv = await calculatePPV(distributor.id, currentMonth);
+      const cgv = await calculateCGV(distributor.id, currentMonth);
+      updatedCount++;
+    } catch (error) {
+      console.error(`Failed to calculate PPV/CGV for ${distributor.distributor_id}:`, error);
+    }
+  }
+  
+  return {
+    processed: updatedCount,
+    timestamp: now.toISOString()
+  };
 }
 
 /**

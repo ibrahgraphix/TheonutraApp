@@ -91,6 +91,13 @@ export function ManageHomeScreen() {
             onPress={() => navigation.navigate('ManageOPB')}
           />
         </View>
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="⚙️"
+            label="System Jobs"
+            onPress={() => navigation.navigate('SystemJobs')}
+          />
+        </View>
 
         <Card style={styles.tip}>
           <Text style={styles.tipTitle}>Admin Access</Text>

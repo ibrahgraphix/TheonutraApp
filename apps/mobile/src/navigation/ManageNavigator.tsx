@@ -27,6 +27,7 @@ import { ManageKycScreen } from '../screens/manage/ManageKycScreen';
 import { CompanyAnalyticsScreen } from '../screens/manage/CompanyAnalyticsScreen';
 import { ManageOPBScreen } from '../screens/manage/ManageOPBScreen';
 import { ManageWithdrawalsScreen } from '../screens/manage/ManageWithdrawalsScreen';
+import { SystemJobsScreen } from '../screens/manage/SystemJobsScreen';
 
 const Stack = createNativeStackNavigator<ManageStackParamList>();
 
@@ -59,6 +60,7 @@ export function ManageNavigator() {
       <Stack.Screen name="ManageKyc" component={ManageKycScreen} />
       <Stack.Screen name="CompanyAnalytics" component={CompanyAnalyticsScreen} />
       <Stack.Screen name="ManageOPB" component={ManageOPBScreen} />
+      <Stack.Screen name="SystemJobs" component={SystemJobsScreen} />
     </Stack.Navigator>
   );
 }

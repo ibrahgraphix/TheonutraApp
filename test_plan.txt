@@ -388,7 +388,7 @@ TABLE OF CONTENTS:
               [ ] Test rejecting a pending OPB bonus and verify it never reaches the wallet
               [ ] Note: Similar approval screens need to be created for other bonus types (referral, team, leadership)
 
-    [ ] 15.3. Part C - Member Payment Method profile:
+    [ ] 15.3. Part C - Member Payment Method profile: (it is connected with withdrawal)
               [ ] Log in as a distributor on the mobile app
               [ ] Navigate to Account tab and tap "Account Settings" in the Settings section
               [ ] Verify the Settings screen opens with profile information

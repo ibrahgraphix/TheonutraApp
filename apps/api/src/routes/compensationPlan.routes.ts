@@ -5,6 +5,7 @@ import {
   listActiveStatusRanksHandler,
   listLeadershipRanksHandler,
   getMyCompensationSnapshotHandler,
+  runDailyUpdateHandler,
   runMonthlyRequalificationHandler,
   listPendingOPBBonusesHandler,
   approveOPBBonusHandler,
@@ -25,6 +26,7 @@ const router = Router();
 router.get('/active-status-ranks', authMiddleware, listActiveStatusRanksHandler);
 router.get('/leadership-ranks', authMiddleware, listLeadershipRanksHandler);
 router.get('/me', authMiddleware, getMyCompensationSnapshotHandler);
+router.post('/run-daily', authMiddleware, requireStaff, runDailyUpdateHandler);
 router.post('/run-monthly', authMiddleware, requireStaff, runMonthlyRequalificationHandler);
 router.get('/opb/pending', authMiddleware, requireStaff, listPendingOPBBonusesHandler);
 router.patch('/opb/:id/approve', authMiddleware, requireStaff, approveOPBBonusHandler);
