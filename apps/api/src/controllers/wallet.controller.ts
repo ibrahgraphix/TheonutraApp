@@ -182,25 +182,6 @@ export async function cancelWithdrawalHandler(
     next(err);
   }
 }
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
-    }
-    const id = req.params['id'] as string;
-    if (!id) {
-      throw new ApiError(400, 'Withdrawal ID is required');
-    }
-    const notes = (req.body?.notes as string) || '';
-    await walletService.rejectWithdrawal(id, req.user.id, notes);
-    res.status(200).json({ message: 'Withdrawal request rejected successfully' });
-  } catch (err) {
-    next(err);
-  }
-}
 
 /**
  * PUT /api/wallet/withdrawals/:id/mark-paid
@@ -246,30 +227,6 @@ export async function markWithdrawalFailedHandler(
     const notes = (req.body?.notes as string) || '';
     await walletService.markWithdrawalFailed(id, req.user.id, notes);
     res.status(200).json({ message: 'Withdrawal request marked as failed and refunded' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * PUT /api/wallet/withdrawals/:id/cancel
- * Cancels a withdrawal request. Distributor or staff.
- */
-export async function cancelWithdrawalHandler(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    if (!req.user) {
-      throw new ApiError(401, 'Unauthorized');
-    }
-    const id = req.params['id'] as string;
-    if (!id) {
-      throw new ApiError(400, 'Withdrawal ID is required');
-    }
-    await walletService.cancelWithdrawal(id, req.user.id);
-    res.status(200).json({ message: 'Withdrawal request cancelled and refunded' });
   } catch (err) {
     next(err);
   }

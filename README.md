@@ -38,6 +38,11 @@ From the Expo CLI UI you can launch Android/iOS, or directly:
 npm -w mobile run android
 ```
 
+Browser run
+cd apps/mobile
+npx expo install react-dom react-native-web
+npm run web
+
 ## Build API
 
 ```bash
