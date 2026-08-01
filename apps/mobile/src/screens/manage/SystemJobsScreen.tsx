@@ -93,7 +93,7 @@ export function SystemJobsScreen() {
                 ✅ Processed: {dailyResult.processed} distributors
               </Text>
               <Text style={styles.resultText}>
-                🕐 Timestamp: {new Date(dailyResult.timestamp).toLocaleString()}
+                🕐 {dailyResult.timestamp ? new Date(dailyResult.timestamp).toLocaleString() : 'Just now'}
               </Text>
             </View>
           )}
