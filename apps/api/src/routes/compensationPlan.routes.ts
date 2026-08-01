@@ -4,9 +4,7 @@ import { requireStaff } from '../middleware/requireStaff.middleware.js';
 import {
   listActiveStatusRanksHandler,
   listLeadershipRanksHandler,
-  getMyCompensationSnapshotHandler,
   runDailyUpdateHandler,
-  runMonthlyRequalificationHandler,
   listPendingOPBBonusesHandler,
   approveOPBBonusHandler,
   rejectOPBBonusHandler,
@@ -20,29 +18,46 @@ import {
   approveRankBonusHandler,
   rejectRankBonusHandler,
 } from '../controllers/compensationPlan.controller.js';
+import {
+  listStarRanksHandler,
+  getMyV1SnapshotHandler,
+  runMonthlyV1JobHandler,
+  listPendingNetworkBonusesHandler,
+  approveNetworkBonusHandler,
+  rejectNetworkBonusHandler,
+  runPayoutBatchHandler,
+} from '../controllers/compensationEngine.controller.js';
 
 const router = Router();
 
+// THEONUTRA V1
+router.get('/star-ranks', authMiddleware, listStarRanksHandler);
+router.get('/v1/me', authMiddleware, getMyV1SnapshotHandler);
+router.post('/v1/run-monthly', authMiddleware, requireStaff, runMonthlyV1JobHandler);
+router.get('/v1/bonuses/pending', authMiddleware, requireStaff, listPendingNetworkBonusesHandler);
+router.patch('/v1/bonuses/:id/approve', authMiddleware, requireStaff, approveNetworkBonusHandler);
+router.patch('/v1/bonuses/:id/reject', authMiddleware, requireStaff, rejectNetworkBonusHandler);
+router.post('/v1/run-payout-batch', authMiddleware, requireStaff, runPayoutBatchHandler);
+
+// /me returns V1 snapshot
 router.get('/active-status-ranks', authMiddleware, listActiveStatusRanksHandler);
 router.get('/leadership-ranks', authMiddleware, listLeadershipRanksHandler);
-router.get('/me', authMiddleware, getMyCompensationSnapshotHandler);
+router.get('/me', authMiddleware, getMyV1SnapshotHandler);
 router.post('/run-daily', authMiddleware, requireStaff, runDailyUpdateHandler);
-router.post('/run-monthly', authMiddleware, requireStaff, runMonthlyRequalificationHandler);
+router.post('/run-monthly', authMiddleware, requireStaff, runMonthlyV1JobHandler);
+
 router.get('/opb/pending', authMiddleware, requireStaff, listPendingOPBBonusesHandler);
 router.patch('/opb/:id/approve', authMiddleware, requireStaff, approveOPBBonusHandler);
 router.patch('/opb/:id/reject', authMiddleware, requireStaff, rejectOPBBonusHandler);
 
-// Pending commissions (referral, team bonus) routes
 router.get('/commissions/pending', authMiddleware, requireStaff, listPendingCommissionsHandler);
 router.patch('/commissions/:id/approve', authMiddleware, requireStaff, approveCommissionHandler);
 router.patch('/commissions/:id/reject', authMiddleware, requireStaff, rejectCommissionHandler);
 
-// Pending leadership bonuses routes
 router.get('/leadership/pending', authMiddleware, requireStaff, listPendingLeadershipBonusesHandler);
 router.patch('/leadership/:id/approve', authMiddleware, requireStaff, approveLeadershipBonusHandler);
 router.patch('/leadership/:id/reject', authMiddleware, requireStaff, rejectLeadershipBonusHandler);
 
-// Pending rank bonuses routes
 router.get('/rank/pending', authMiddleware, requireStaff, listPendingRankBonusesHandler);
 router.patch('/rank/:id/approve', authMiddleware, requireStaff, approveRankBonusHandler);
 router.patch('/rank/:id/reject', authMiddleware, requireStaff, rejectRankBonusHandler);

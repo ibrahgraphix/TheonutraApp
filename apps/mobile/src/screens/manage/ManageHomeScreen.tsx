@@ -86,16 +86,28 @@ export function ManageHomeScreen() {
             onPress={() => navigation.navigate('ManageWithdrawals')}
           />
           <ShortcutButton
-            icon="💎"
-            label="OPB Bonuses"
-            onPress={() => navigation.navigate('ManageOPB')}
+            icon="⭐"
+            label="Network Bonuses"
+            onPress={() => navigation.navigate('ManageNetworkBonuses')}
           />
         </View>
         <View style={styles.grid}>
           <ShortcutButton
+            icon="📱"
+            label="Payment Changes"
+            onPress={() => navigation.navigate('ManagePaymentChanges')}
+          />
+          <ShortcutButton
             icon="💰"
             label="Commissions"
             onPress={() => navigation.navigate('ManageCommissions')}
+          />
+        </View>
+        <View style={styles.grid}>
+          <ShortcutButton
+            icon="💎"
+            label="OPB Bonuses"
+            onPress={() => navigation.navigate('ManageOPB')}
           />
           <ShortcutButton
             icon="⚙️"

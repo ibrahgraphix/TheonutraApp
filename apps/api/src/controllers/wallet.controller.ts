@@ -48,7 +48,7 @@ export async function getMyTransactionsHandler(
 
 /**
  * POST /api/wallet/withdrawals
- * Submits a new withdrawal request for the authenticated user.
+ * Distributors cannot self-initiate withdrawals (Step 26). Staff/payout batch only.
  */
 export async function requestWithdrawalHandler(
   req: Request,
@@ -58,6 +58,13 @@ export async function requestWithdrawalHandler(
   try {
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
+    }
+    const role = req.user.role;
+    if (role !== 'admin' && role !== 'company_staff') {
+      throw new ApiError(
+        403,
+        'Distributors cannot request withdrawals. Payouts are processed by staff via the monthly payout batch.',
+      );
     }
     const input = req.body as RequestWithdrawalInput;
     const requestId = await walletService.requestWithdrawal(

@@ -91,7 +91,7 @@ export async function getPaymentMethodHandler(
 
 /**
  * PATCH /account/payment-method
- * Updates the user's payment method details.
+ * Submits a payment method change request (pending admin confirmation).
  */
 export async function updatePaymentMethodHandler(
   req: Request,
@@ -104,13 +104,82 @@ export async function updatePaymentMethodHandler(
     }
 
     const input = req.body as PaymentMethodInput;
-    await accountService.updatePaymentMethod(
+    const result = await accountService.requestPaymentMethodChange(
       req.user.id,
       input.payment_method,
       input.payment_full_name,
       input.payment_account_number,
     );
-    res.status(200).json({ message: 'Payment method updated successfully' });
+    res.status(202).json({
+      message: 'Payment method change submitted — pending admin confirmation',
+      requestId: result.requestId,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /account/payment-method/pending-changes — staff
+ */
+export async function listPaymentMethodChangesHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    res.status(200).json(await accountService.listPendingPaymentMethodChanges());
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function approvePaymentMethodChangeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new ApiError(401, 'Unauthorized');
+    const id = req.params['id'] as string;
+    await accountService.approvePaymentMethodChange(id, req.user.id);
+    res.status(200).json({ message: 'Payment method change approved' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function rejectPaymentMethodChangeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new ApiError(401, 'Unauthorized');
+    const id = req.params['id'] as string;
+    const notes = (req.body?.notes as string) || undefined;
+    await accountService.rejectPaymentMethodChange(id, req.user.id, notes);
+    res.status(200).json({ message: 'Payment method change rejected' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /account/photo
+ * Sets passport/photo URL after Cloudinary upload.
+ */
+export async function updatePhotoHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) throw new ApiError(401, 'Unauthorized');
+    const photoUrl = req.body?.photoUrl as string;
+    if (!photoUrl) throw new ApiError(400, 'photoUrl is required');
+    const result = await accountService.updatePhotoUrl(req.user.id, photoUrl);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }

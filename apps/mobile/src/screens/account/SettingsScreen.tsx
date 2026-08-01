@@ -22,10 +22,13 @@ import {
   deleteAccount,
   getPaymentMethod,
   updatePaymentMethod,
+  uploadImage,
+  updateMyPhoto,
 } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { colors, spacing, typography } from '../../theme';
 import type { AccountStackParamList } from '../../navigation/accountTypes';
+import * as ImagePicker from 'expo-image-picker';
 
 type NavigationProp = NativeStackNavigationProp<AccountStackParamList, 'Settings'>;
 
@@ -72,7 +75,41 @@ export function SettingsScreen() {
   const [paymentMethodModal, setPaymentMethodModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
   const hasMounted = useRef(false);
+
+  const handlePhotoUpload = async () => {
+    if (!distributor) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow photo library access to upload your passport photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setSubmitting(true);
+    try {
+      const url = await uploadImage(result.assets[0].uri, 'passport');
+      await updateMyPhoto(url);
+      updateDistributor({ ...distributor, avatarUrl: url });
+      Alert.alert('Success', 'Passport photo updated.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    getPaymentMethod()
+      .then((pm) => setPaymentPending(!!pm.pendingChange))
+      .catch(() => undefined);
+  }, []);
 
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -156,15 +193,12 @@ export function SettingsScreen() {
         payment_full_name: data.paymentFullName,
         payment_account_number: data.paymentAccountNumber,
       });
-      // Update the local distributor state with the new payment method
-      updateDistributor({
-        ...distributor,
-        payment_method: data.paymentMethod,
-        payment_full_name: data.paymentFullName,
-        payment_account_number: data.paymentAccountNumber,
-      });
+      // Live number does NOT change until admin confirms
       setPaymentMethodModal(false);
-      Alert.alert('Success', 'Payment method saved successfully');
+      Alert.alert(
+        'Pending confirmation',
+        'Your payment method change was submitted. The old number stays active until admin confirms.',
+      );
     } catch (e) {
       setSettingsError(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -195,9 +229,15 @@ export function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile card */}
         <Card style={styles.profileCard}>
-          <Avatar name={distributor.fullName} size={56} />
+          <Avatar imageUrl={distributor.avatarUrl} name={distributor.fullName} size={56} />
           <Text style={styles.name}>{distributor.fullName}</Text>
           <Text style={styles.phone}>{distributor.phone}</Text>
+          <Button
+            loading={submitting}
+            onPress={handlePhotoUpload}
+            title="Upload Passport Photo"
+            variant="outline"
+          />
         </Card>
 
         {/* Payment Method */}
@@ -216,6 +256,11 @@ export function SettingsScreen() {
                   'Not set'
                 )}
               </Text>
+              {paymentPending ? (
+                <Text style={[styles.rowValue, { color: colors.secondary }]}>
+                  Change pending admin confirmation
+                </Text>
+              ) : null}
             </View>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>

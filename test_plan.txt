@@ -18,12 +18,14 @@ TABLE OF CONTENTS:
 6. PAYMENT VERIFICATION & PROOF APPROVAL (STAFF ONLY)
 7. CUSTOMER RETAIL SALES LOGGING & PROFIT TESTING (CUSTOMER TESTING FLOW)
 8. KYC VERIFICATION SUBMISSION & APPROVAL FLOW
-9. WALLET, COMMISSIONS, & WITHDRAWALS FLOW
-10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW
+9. WALLET, COMMISSIONS, & WITHDRAWALS FLOW  (UPDATED — distributors cannot self-withdraw)
+10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW  (UPDATED — 3-leg placement)
 11. TRAINING ACADEMY & KNOWLEDGE SHARING FLOW
 12. EVENTS, NEWS, & NOTIFICATIONS FLOW
 13. SYSTEM AUDIT LOGGING & SECURITY POLICIES
 14. AUTOMATED BACKEND INTEGRATION TESTS RUNBOOK
+15. LEGACY PAYMENT POLICY CHECKS (HaloPesa, withdrawal failed/cancelled)
+16. THEONUTRA V1 COMPENSATION ENGINE + STEP 26  <<< NEW — test this first after schema patch
 --------------------------------------------------------------------------------
 
 [ ] 1. PREREQUISITES & SERVER SETUP
@@ -45,6 +47,18 @@ TABLE OF CONTENTS:
              Open the app in an Android emulator, iOS simulator, or Expo Go.
 
 [ ] 2. DATABASE SEEDING
+    [ ] 2.0. Apply THEONUTRA V1 + Step 26 schema patch (REQUIRED before V1 testing):
+             Open Supabase → SQL Editor → paste and run:
+               apps/api/patch_theonutra_v1_compensation.sql
+             Also ensure earlier patches are applied if not already:
+               apps/api/patch_commissions_schema.sql
+             Verify:
+               [ ] Table `star_ranks` has 7 rows (Star 1 … Lead Star 7).
+               [ ] Table `compensation_settings` has usd_per_pv=1, usd_tzs_rate=2500.
+               [ ] Tables exist: network_bonuses, distributor_volume_monthly,
+                   payment_method_change_requests, payout_batches.
+               [ ] profiles has columns: star_rank_id, placement_sponsor_id, leg_position,
+                   lifetime_cgv, photo_url.
     [ ] 2.1. Seed the default administrator account (credentials: ID: ADMIN-001, Pass: ChangeMe123!):
              Run: npm -w api run seed:admin
              Verify in Supabase dashboard that a profile is created in `profiles` with role='admin'.
@@ -52,6 +66,7 @@ TABLE OF CONTENTS:
              Run: npm -w api run seed:catalog
              Verify that countries (e.g., Tanzania, Kenya, Uganda) and initial products (e.g., Slimfit tea) 
              with their corresponding country pricing and PVs are added.
+             CRITICAL: products must have non-zero `pv` — network bonuses use PV, not money %.
 
 [ ] 3. USER REGISTRATION & AUTHENTICATION FLOW
     [ ] 3.1. Mobile Login (Admin / Staff):
@@ -81,9 +96,16 @@ TABLE OF CONTENTS:
              [ ] Tap "Edit" next to "Rwanda", change the Currency to "RWF-New" and save. Verify the update.
     [ ] 4.2. Seller/Distributor Management:
              [ ] Log in as Admin/Staff. Navigate to Manage -> Add Seller.
-             [ ] Fill in: ID: "BF-TZ-88888", Full Name: "Jane Smith", Phone: "+255711122233", Password: "Password123!", Country: "Tanzania". Save.
-             [ ] Verify the seller appears in Manage -> Distributors list.
-             [ ] Search for "Jane Smith" in the list. Tap her profile to view details.
+             [ ] Fill in: ID: "BF-TZ-88888", Full Name: "Jane Smith", Phone: "+255711122233", Password: "Password123!", Country: "Tanzania".
+             [ ] Set Referrer / referredBy to an existing distributor (for 3-leg placement test).
+             [ ] Save. Verify the seller appears in Manage -> Distributors list with photo thumbnail (initials if no photo yet).
+             [ ] In Supabase `profiles`, verify for BF-TZ-88888:
+                 - star_rank_id = Star 1
+                 - placement_sponsor_id and leg_position in ('left','center','right')
+                 - referred_by = the recruiter UUID
+             [ ] Create 3 more distributors under the SAME sponsor. Verify legs fill Left, then Center, then Right.
+             [ ] Create a 5th under the same sponsor. Verify spillover: placement_sponsor_id is under the weakest of the 3 legs (not a 4th direct leg).
+             [ ] Search for "Jane Smith". Tap profile to view details.
              [ ] Tap "Edit Seller", change her phone to "+255711122244". Save and verify.
     [ ] 4.3. Product Catalog Management:
              [ ] Log in as Admin/Staff. Navigate to Manage -> Products.
@@ -126,7 +148,9 @@ TABLE OF CONTENTS:
              [ ] Tap "Approve Payment".
              [ ] Log back in as the distributor. Go to Account -> Order History.
              [ ] Verify the order status is now "paid" or "delivered".
-             [ ] Verify that the wholesale order PV is added to the distributor's PPV (Personal Volume) on the Account rank card.
+             [ ] Verify that the wholesale order PV increases the distributor's PPV on Home/Account (V1 rank card).
+             [ ] Verify NO money-% referral commission row was inserted into `commissions` for the upline
+                 (V1: network pay is monthly Active Monthly + Differential only).
              [ ] Verify that a loyalty record has been created for the distributor based on the order value.
              [ ] (Alternative Rejection Test): Place another order, upload proof, and as Admin tap "Reject Payment" and input notes "Receipt blurred". Verify the distributor sees status "rejected" with rejection notes.
 
@@ -208,10 +232,7 @@ TABLE OF CONTENTS:
 [ ] 8. KYC VERIFICATION SUBMISSION & APPROVAL FLOW
     [ ] 8.1. Submit KYC (Distributor):
              [ ] Log in as a new distributor (without approved KYC).
-             [ ] Go to Account -> Wallet.
-             [ ] Tap "Request Withdrawal".
-             [ ] Verify a warning alert is displayed stating "KYC Required".
-             [ ] Tap "Verify Now" (or navigate directly via Account -> KYC Verification).
+             [ ] Navigate via Account -> KYC Verification (or Account Settings path).
              [ ] Input full name, select document type (National ID / Passport), enter Document Number.
              [ ] Tap "Upload Front Image" and select an image.
              [ ] Tap "Upload Back Image" and select an image.
@@ -219,54 +240,42 @@ TABLE OF CONTENTS:
              [ ] Tap "Submit Verification".
              [ ] Verify the status screen changes to display "Verification Pending".
              [ ] Try tapping KYC verification again. Verify it prevents re-submission while pending.
+             [ ] NOTE (Step 26): Distributors no longer use "Request Withdrawal" on Wallet.
+                 KYC remains relevant for payout eligibility messaging, not self-service cash-out.
 
-[ ] 9. WALLET, COMMISSIONS, & WITHDRAWALS FLOW
+[ ] 9. WALLET & STAFF WITHDRAWALS (UPDATED — Step 26 C)
     [ ] 9.1. KYC Status Review (Staff):
              [ ] Log in as Admin/Staff.
              [ ] Navigate to Manage -> Manage KYC.
              [ ] Locate the distributor's pending KYC request.
              [ ] Tap "Review". View uploaded photos and inputs.
-             [ ] Tap "Approve". (Verify that the distributor profile's kyc_status updates to 'approved' in Supabase).
-             [ ] (Alternative Rejection Test): Submit KYC on another test account. As Admin, tap "Reject" and input notes "Image not clear". Verify the distributor sees status "rejected" with rejection notes and can re-submit.
-    [ ] 9.2. Request Withdrawal (Distributor):
-             [ ] Log in as the KYC-approved distributor.
-             [ ] Go to Account -> Wallet.
-             [ ] Verify that your wallet has some balance (can be earned via retail profit commissions or manual adjustment).
-             [ ] Tap "Request Withdrawal". Verify the modal pops up without KYC warnings.
-             [ ] Select payout method: "Bank" or "Mobile Money".
-             [ ] Input withdrawal amount (e.g. 25,000). Ensure it is above the minimum limit (e.g., 20,000).
-             [ ] Check the dynamic breakdown calculations:
-                 - Fee: 2% (e.g., 500)
-                 - You'll receive: Amount - Fee (e.g., 24,500)
-             [ ] Enter bank account details or mobile money phone number.
-             [ ] Click "Submit Request". Verify that the amount is immediately deducted from the wallet balance to reserve it.
-             [ ] Navigate to the "Withdrawals" tab in the Wallet screen. Verify that the request shows up with status "pending".
-    [ ] 9.3. Process Withdrawal (Staff):
-             [ ] Log in as Admin/Staff.
-             [ ] Navigate to Manage -> Pending Payments (or Wallet Withdrawals list if separate).
-             [ ] View the pending withdrawal request list.
-             [ ] Select the request.
-             [ ] Tap "Approve Request". (Verify status changes to "approved").
-             [ ] Verify that a debit transaction of type "withdrawal" is written to the distributor's ledger in Supabase.
-             [ ] Log back in as the distributor, open Wallet -> Withdrawals. Verify the status is "approved".
-             [ ] Log back in as Admin/Staff. Go to approved requests and select the withdrawal.
-             [ ] Tap "Mark Paid" (after executing the actual bank/mobile money transfer). Verify status updates to "paid".
-             [ ] (Alternative Rejection Test): Request another withdrawal. As Admin, tap "Reject Withdrawal" and input notes "Incorrect account details". Verify that the reserved withdrawal amount is fully refunded to the distributor's wallet balance.
+             [ ] Tap "Approve". (Verify profile kyc_status → 'approved' in Supabase).
+             [ ] (Alternative Rejection Test): Reject with notes "Image not clear"; distributor can re-submit.
+    [ ] 9.2. Distributor CANNOT self-withdraw (API + UI):
+             [ ] Log in as distributor. Go to Account -> Wallet.
+             [ ] Verify there is NO "Request Withdrawal" button (message about monthly payout batch instead).
+             [ ] Call POST /api/wallet/withdrawals with a distributor Bearer token.
+             [ ] Expected: 403 Forbidden with message that distributors cannot request withdrawals.
+    [ ] 9.3. Staff withdrawal tools (legacy ledger, still available for staff):
+             [ ] Log in as Admin/Staff. Navigate to Manage -> Withdrawals.
+             [ ] Staff can still approve / reject / mark-paid / mark-failed / cancel existing requests.
+             [ ] Primary cash-out path for network earnings is now:
+                 Approve Network Bonus → wallet credit → Run Payout Batch (Section 16).
 
-[ ] 10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW
+[ ] 10. DISTRIBUTOR TEAM DOWNLINE & REFERRAL FLOW (3-LEG)
     [ ] 10.1. Referral Code & Registration:
               [ ] Log in as a distributor. Navigate to Account -> Referral.
-              [ ] Verify that your unique Referral Link/Code is generated (e.g., linking your distributor ID).
+              [ ] Verify that your unique Referral Link/Code is generated.
               [ ] Tap "Copy Link". Verify it copies to the clipboard.
-              [ ] Log out. Use the referral link or register a new seller by setting the referral parent distributor ID.
-              [ ] Verify that the signup is successful and the parent-child relationship is recorded.
+              [ ] As Admin, create new sellers with referredBy = this distributor.
+              [ ] Verify parent-child relationship and leg_position assignment.
     [ ] 10.2. Team Tree Navigation:
               [ ] Log in as the parent distributor.
               [ ] Go to the "Team" tab.
-              [ ] Verify that the newly registered distributor appears in the list.
-              [ ] Tap on the team member to inspect their performance details (e.g., PPV, CGV, email/phone).
-              [ ] Log in as Admin/Staff. Navigate to Manage -> Distributors.
-              [ ] Select the parent distributor, and verify that staff can view the entire downline hierarchy tree of that distributor.
+              [ ] Verify newly registered distributors appear in the list.
+              [ ] On Account compensation card, verify Left / Center / Right PV columns update
+                  when those legs generate PPV (after paid orders / customer sales).
+              [ ] Log in as Admin/Staff. Manage -> Distributors -> parent -> view downline.
 
 [ ] 11. TRAINING ACADEMY & KNOWLEDGE SHARING FLOW
     [ ] 11.1. Manage Training Content (Staff):
@@ -302,7 +311,9 @@ TABLE OF CONTENTS:
                   * Place an order (triggers order confirmation notification).
                   * Approve an order payment (triggers order status update notification).
                   * Approve/Reject KYC (triggers KYC status notification).
-                  * Approve/Reject Withdrawal (triggers withdrawal status notification).
+                  * Approve network bonus / payout batch (triggers bonus/payout notifications).
+                  * Payment method confirm/reject (triggers payment change notifications).
+                  * Rank upgrade after monthly job (triggers rank notification).
               [ ] Log in as the distributor. Look at the Account tab. Verify that the badge number on the "Notifications" link reflects the number of unread notifications.
               [ ] Tap "Notifications". Verify the messages are listed and marked as read once viewed.
 
@@ -318,13 +329,14 @@ TABLE OF CONTENTS:
     [ ] 13.2. Row Level Security (RLS) Verification:
               [ ] Attempt to make API requests as an unauthenticated user (no token). Verify the server returns 401 Unauthorized.
               [ ] Attempt to request `/api/sellers` (distributors list) using a distributor token. Verify it returns 403 Forbidden (requires staff role).
+              [ ] Attempt POST /api/wallet/withdrawals as distributor → 403 (Step 26).
               [ ] Attempt to view another distributor's wallet transactions directly via database queries or modified API calls. Verify that Supabase RLS blocks this access, allowing distributors to select only their own records.
 
 --------------------------------------------------------------------------------
 [ ] 14. AUTOMATED BACKEND INTEGRATION TESTS RUNBOOK
-    
+
     The backend provides a comprehensive suite of automated integration scripts
-    to test individual systems. Run these commands from the root directory or inside 
+    to test individual systems. Run these commands from the root directory or inside
     `apps/api` to verify the code logic:
 
     [ ] 14.1. Catalog and Country Pricing:
@@ -335,6 +347,8 @@ TABLE OF CONTENTS:
               npm -w api run test:orders
     [ ] 14.4. Basic Commissions calculation:
               npm -w api run test:commissions
+              NOTE: money-% referral is retired in V1; script may need updates if it
+              still expects immediate referral commission rows on paid orders.
     [ ] 14.5. Analytics & Dashboard:
               npm -w api run test:analytics
     [ ] 14.6. Ranks and PV qualifications:
@@ -343,109 +357,165 @@ TABLE OF CONTENTS:
               npm -w api run test:customer-sales
     [ ] 14.8. Wallet & Withdrawals ledger logic:
               npm -w api run test:wallet
+              NOTE: expect distributor self-withdraw to fail with 403 under V1/Step 26.
     [ ] 14.9. Team Bonus processing:
               npm -w api run test:team-bonus
+              NOTE: legacy level team-bonus may be superseded by V1 differential;
+              prefer Section 16 monthly job for official network pay tests.
     [ ] 14.10. Manual Adjustments & Bonuses:
                npm -w api run test:manual-bonus
     [ ] 14.11. Events, Loyalty, & Audit log:
                npm -w api run test:events-loyalty-audit
 
-[ ] 15. THEONUTRA V1 OFFICIAL PAYMENT & COMPENSATION POLICY
-    [ ] 15.1. Part A - Retail Profit becomes report-only, never touches wallet:
-              [ ] Log in as a distributor on the mobile app
-              [ ] Navigate to Account tab and tap the "Customer Sales" quick link button
-              [ ] Tap the "+ Log New Sale" button to open the sale logging modal
-              [ ] Fill in customer details: customer name "John Customer", phone "+255799988877"
-              [ ] Select a product from the product picker (e.g., "Slimfit tea")
-              [ ] Set quantity to 2 units and adjust customer price if needed
-              [ ] Submit the sale and verify success message "Retail profit is for reporting purposes only"
-              [ ] Navigate to Wallet screen and verify wallet balance has NOT changed
-              [ ] Return to Customer Sales screen and verify the new sale appears in the history
-              [ ] Verify the "Retail Profit (Report)" card shows the calculated profit but marked as "Informational only"
-              [ ] Access the GET /api/customer-sales/retail-profit-report endpoint via API client
-              [ ] Verify the endpoint returns retail profit data by period without any wallet balance changes
-              [ ] Check Supabase database to confirm no wallet_transactions record was created for the retail profit
-              [ ] Verify that the customer_sales table contains the sale record with retail_profit calculated
+[ ] 15. LEGACY PAYMENT POLICY CHECKS (still valid pieces)
+    [ ] 15.1. HaloPesa provider:
+              [ ] Settings -> Payment Method: HaloPesa is selectable.
+              [ ] Checkout mobile-money provider list includes HaloPesa.
+    [ ] 15.2. Withdrawal statuses Failed / Cancelled (staff tools):
+              [ ] As staff on Manage -> Withdrawals, mark a request Failed with notes;
+                  distributor gets notification; status badge shows failed.
+              [ ] Cancel another; distributor notified; status cancelled.
+              [ ] DB check constraint accepts 'failed' and 'cancelled'.
 
-    [ ] 15.2. Part B - Network bonuses become monthly-only, held as "Pending" until approved:
-              [ ] Note: OPB and other bonus calculations run as backend scheduled jobs, not through frontend
-              [ ] Run the daily job (runDailyUpdate) via backend API endpoint or server script
-              [ ] Verify the job calculates PPV/CGV correctly by checking distributor rank data
-              [ ] Check wallet_transactions table to confirm NO new wallet credits were created by the daily job
-              [ ] Run the monthly job (runMonthlyRequalification) via backend API endpoint or server script
-              [ ] Check the commissions table for referral/direct commission records with status: 'pending'
-              [ ] Check the team_bonuses table for team bonus records with status: 'pending'
-              [ ] Check the opb_payments table for OPB records with status: 'pending'
-              [ ] Check the leadership_bonuses table for leadership/rank bonus records with status: 'pending'
-              [ ] Verify that none of these pending bonuses have corresponding wallet_transactions entries
-              [ ] Log in as staff on mobile app and navigate to Manage tab
-              [ ] Tap "OPB Bonuses" to access the ManageOPB screen
-              [ ] Verify the screen shows pending OPB bonuses awaiting approval
-              [ ] Select a pending OPB bonus and tap "Approve"
-              [ ] Verify the bonus status changes from 'pending' to 'approved' in the database
-              [ ] Verify a new wallet_transactions entry is created for the approved bonus
-              [ ] Check the distributor's wallet balance and confirm it increased by the bonus amount
-              [ ] Test rejecting a pending OPB bonus and verify it never reaches the wallet
-              [ ] Note: Similar approval screens need to be created for other bonus types (referral, team, leadership)
+================================================================================
+[ ] 16. THEONUTRA V1 COMPENSATION ENGINE + STEP 26 GAPS
+================================================================================
+Official logic:
+  PPV (monthly personal) → GPV (monthly team, exclude self) → Lifetime CGV
+  → Star 1–7 upgrade → Active Monthly Bonus + Differential → PV×USD×TZS
+  → Staff approve → Wallet credit → Monthly payout batch via confirmed payment number
 
-    [ ] 15.3. Part C - Member Payment Method profile: (it is connected with withdrawal)
-              [ ] Log in as a distributor on the mobile app
-              [ ] Navigate to Account tab and tap "Account Settings" in the Settings section
-              [ ] Verify the Settings screen opens with profile information
-              [ ] Verify the "Payment Method" section exists in the settings list
-              [ ] Tap on "Payment Method" to open the payment method modal
-              [ ] Select payment method: "M-Pesa" from the provider picker buttons
-              [ ] Enter full name: "Jane Doe"
-              [ ] Enter phone number: "+255711122233"
-              [ ] Tap "Save Payment Method" and verify success message
-              [ ] Navigate back to Settings and tap "Payment Method" again
-              [ ] Verify the saved payment method details persist correctly
-              [ ] Edit the payment method: change provider to "Airtel Money" and update account number
-              [ ] Save changes and verify the updates persist
-              [ ] Access the GET /api/account/payment-method endpoint via API client with distributor token
-              [ ] Verify the endpoint returns the saved payment method details correctly
-              [ ] Test the PATCH /api/account/payment-method endpoint to update details via API
-              [ ] Navigate to Wallet screen and tap "Request Withdrawal"
-              [ ] Verify the payout details field is auto-filled with the saved payment method info
-              [ ] Modify the pre-filled details in the withdrawal request to test override functionality
-              [ ] Submit the withdrawal request and verify it uses the overridden details
+Retail profit stays OUTSIDE the network engine (cash/reporting — not differential %).
 
-    [ ] 15.4. Part D - Add HaloPesa:
-              [ ] Log in as a distributor and navigate to Shop tab
-              [ ] Add products to cart and proceed to Checkout screen
-              [ ] In the payment method section, verify 'HaloPesa' appears in the MobileMoneyProvider list
-              [ ] Navigate to Account tab > Account Settings > Payment Method
-              [ ] Verify 'HaloPesa' appears in the payment provider picker buttons
-              [ ] Select 'HaloPesa' and verify it can be saved as a payment method
-              [ ] Navigate to Wallet screen and tap "Request Withdrawal"
-              [ ] In the withdrawal modal, verify 'HaloPesa' is selectable in the provider list
-              [ ] Select HaloPesa in each location (Checkout, Payment Method Settings, Withdrawal)
-              [ ] Verify HaloPesa functions correctly in all three locations
-              [ ] Confirm HaloPesa appears everywhere that Mixx by Yas currently appears
+--------------------------------------------------------------------------------
+[ ] 16.1. Schema & settings sanity
+    [ ] Confirm star_ranks seed:
+          Star1 PPV≥10 CGV≥0 2% | Star2 20/200 5% | Star3 30/400 9% |
+          Star4 30/1000 13% | Star5 40/5000 17% | Star6 40/8000 22% |
+          Lead Star7 50/12000 28%
+    [ ] GET /api/compensation/star-ranks returns the 7 ranks.
+    [ ] GET /api/compensation/me (distributor token) returns:
+          period, ppv, gpv, lifetimeCgv, isActive, currentRank, nextRank,
+          ppvNeeded, cgvNeeded, legs.{left,center,right}, currency
+    [ ] Labels: lifetimeCgv must NOT reset when calendar month changes
+        (unlike ppv/gpv which are month-scoped).
 
-    [ ] 15.5. Part E - Withdrawal statuses: add Failed and Cancelled:
-              [ ] Log in as a distributor and submit a withdrawal request for testing
-              [ ] Log in as staff on the mobile app
-              [ ] Navigate to Manage tab and tap "Withdrawal Management" (or Manage Withdrawals)
-              [ ] Locate the test withdrawal request in the pending list
-              [ ] Tap on the withdrawal request to view details
-              [ ] Tap "Mark as Failed" button (or similar staff action)
-              [ ] Enter a reason for failure: "Bank account invalid"
-              [ ] Confirm the action and verify the withdrawal status changes to 'failed'
-              [ ] Check the withdrawal_requests table in Supabase to confirm status is 'failed'
-              [ ] Log in as the distributor and check the Notifications screen
-              [ ] Verify a notification appears with title "Withdrawal Failed" and the reason
-              [ ] Return to staff account and select another pending withdrawal request
-              [ ] Tap "Cancel Withdrawal" button (or similar staff action)
-              [ ] Confirm the cancellation and verify the withdrawal status changes to 'cancelled'
-              [ ] Check the withdrawal_requests table to confirm status is 'cancelled'
-              [ ] Log in as the distributor and verify a "Withdrawal Cancelled" notification appears
-              [ ] Navigate to Wallet screen as a distributor
-              [ ] Verify the withdrawal status badge displays 'failed' with appropriate color (e.g., red)
-              [ ] Verify the withdrawal status badge displays 'cancelled' with appropriate color (e.g., gray)
-              [ ] Log in as staff and verify the admin withdrawal management screen shows both new statuses
-              [ ] Verify the status colors are consistent and distinguishable in the staff interface
-              [ ] Test the database constraint by attempting to insert invalid withdrawal statuses
-              [ ] Verify the withdrawal_requests.status check constraint accepts 'failed' and 'cancelled'
+--------------------------------------------------------------------------------
+[ ] 16.2. Dashboard visibility (Part A / Spec §10)
+    [ ] Log in as distributor.
+    [ ] Home: shows Rank, PPV, Lifetime CGV (not merged into one money sales figure only).
+    [ ] Account: rank badge, PPV progress (e.g. 24/30), GPV, Lifetime CGV,
+        Left/Center/Right PV, next-rank hint ("Need X CGV more to reach Star N").
+    [ ] After paid order with product PV, refresh Account — PPV increases by qty×pv.
+    [ ] Staff cannot see another distributor's /api/compensation/me without their token
+        (self-scoped). Staff uses Manage tools / System Jobs instead.
 
+--------------------------------------------------------------------------------
+[ ] 16.3. Commission uses PV, not unit money (Part A)
+    [ ] Create/use a product where wholesale price and PV are mismatched
+        (e.g. price 100,000 TZS but PV = 10).
+    [ ] Place & staff-approve a paid order for that product (qty 2 → 20 PV).
+    [ ] Confirm sale row exists; confirm NO commissions row with amount = % of 200,000.
+    [ ] Run monthly V1 job for current period (16.5). Confirm Active Monthly /
+        Differential bonuses (if eligible) are computed from PV, not TZS total.
+
+--------------------------------------------------------------------------------
+[ ] 16.4. Rank progression & lifetime CGV (Part B / Spec §3–4)
+    [ ] Start distributor at Star 1 (or unranked → Star 1 after first qualify).
+    [ ] Generate enough personal PV alone over time OR with team so lifetime_cgv
+        crosses Star 2 threshold (200) with PPV≥20 in the qualification month.
+    [ ] Run POST /api/compensation/v1/run-monthly { "period": "YYYY-MM" } as staff
+        (or Manage -> System Jobs -> Run Monthly Job).
+    [ ] Verify profiles.star_rank_id upgrades; notification "Rank Upgraded: Star 2".
+    [ ] Dashboard badge updates without app reinstall.
+    [ ] Lead Star 7 path uses LIFETIME CGV ≥ 12,000 (not a single month's CGV).
+    [ ] Re-running monthly job for same period does not demote rank;
+        lifetime_cgv does not double-count the same period (idempotent volume upsert).
+
+--------------------------------------------------------------------------------
+[ ] 16.5. Monthly job: Active + Differential bonuses
+    [ ] Preconditions: distributor Active (PPV ≥ current rank min_ppv), has downline
+        with their own PPV this period, and higher bonus_percent than downline.
+    [ ] Run monthly job.
+    [ ] Check network_bonuses:
+          [ ] Row bonus_type='active_monthly' for self: bonus_pv ≈ PPV × (rank%/100)
+          [ ] Row bonus_type='differential' per downline member where
+                (your% − their%) > 0: bonus_pv ≈ downline_PPV × diff%
+          [ ] If your% ≤ their%: no differential (0)
+          [ ] If INACTIVE (PPV below rank min): no active_monthly and no differential for you
+          [ ] amount_tzs = bonus_pv × usd_per_pv × usd_tzs_rate (default 1 × 2500)
+          [ ] status = 'pending'
+    [ ] Manage -> Network Bonuses lists pending rows with TZS + PV.
+
+--------------------------------------------------------------------------------
+[ ] 16.6. Staff approve / reject network bonuses (Step 25 style + V1)
+    [ ] As staff: Manage -> Network Bonuses -> Approve one pending bonus.
+    [ ] Verify status → approved; wallets.balance increases by amount_tzs;
+        wallet_transactions credit created; distributor notified.
+    [ ] Reject another pending bonus; verify status rejected; wallet unchanged;
+        no credit transaction.
+
+--------------------------------------------------------------------------------
+[ ] 16.7. Monthly payout batch (Part D)
+    [ ] Ensure distributor has confirmed payment_method + payment_account_number
+        (see 16.8 — must be admin-confirmed, not pending).
+    [ ] Ensure at least one network_bonuses row is status='approved' for period.
+    [ ] Manage -> System Jobs -> Run Payout Batch
+        (or POST /api/compensation/v1/run-payout-batch { "period": "YYYY-MM" }).
+    [ ] Verify approved rows → status 'paid', paid_at set.
+    [ ] Distributor notification mentions payment method + account.
+    [ ] payout_batches row created with paid_count / total_tzs.
+    [ ] Distributors WITHOUT payment number are skipped (skipped count > 0).
+    [ ] Confirm this is a SEPARATE step from Approve (approve = wallet credit;
+        payout batch = mark paid / notify for MM-bank execution).
+
+--------------------------------------------------------------------------------
+[ ] 16.8. Payment method change requires admin confirmation (Part E)
+    [ ] As distributor: Account -> Settings -> Payment Method.
+    [ ] Submit change (e.g. M-Pesa → Airtel, new number).
+    [ ] Success message: pending confirmation; live number on profile UNCHANGED.
+    [ ] Settings / Wallet shows "Change pending admin confirmation".
+    [ ] Staff receive system notification with old vs new.
+    [ ] GET /api/account/payment-method returns pendingChange object.
+    [ ] As staff: Manage -> Payment Changes.
+    [ ] Side-by-side old vs new visible.
+    [ ] Tap Confirm: profiles.payment_* updates to new values; request approved;
+        distributor notified "Payment Method Confirmed".
+    [ ] Repeat with another request and Reject: live number stays old;
+        request rejected; distributor notified; pendingChange cleared.
+
+--------------------------------------------------------------------------------
+[ ] 16.9. Passport / photo upload (Part F)
+    [ ] As distributor: Settings -> Upload Passport Photo (Cloudinary signed upload).
+    [ ] Verify profiles.photo_url set; Avatar shows image on Account, Home, Settings.
+    [ ] Replace photo: old Cloudinary asset deleted (or best-effort delete logged);
+        new URL stored.
+    [ ] As staff: Manage -> Distributors list shows thumbnail beside name/ID.
+    [ ] Oversized image: client uses quality/transform cap (1200×1200 via signature);
+        upload still succeeds under cap.
+    [ ] Deactivate/delete account (self deactivate or staff hard-delete when allowed):
+        photo_url cleared / Cloudinary cleaned; no orphan required for pass.
+
+--------------------------------------------------------------------------------
+[ ] 16.10. Remote purchase without location (Part C)
+    [ ] As distributor, complete Shop -> Cart -> Checkout -> submit order
+        without granting location/GPS permissions.
+    [ ] Confirm no proximity/geolocation gate blocks checkout.
+
+--------------------------------------------------------------------------------
+[ ] 16.11. End-to-end happy path checklist (integration)
+    [ ] 1. Apply SQL patch; restart API; login distributor + staff.
+    [ ] 2. Set confirmed payment method (submit + staff confirm).
+    [ ] 3. Upload passport photo; visible on Account + admin list.
+    [ ] 4. Create 3-leg team under sponsor; 4th spills over.
+    [ ] 5. Distributor buys product (PV set); staff approves payment.
+    [ ] 6. Home/Account show updated PPV; no money-% upline commission.
+    [ ] 7. Staff runs Monthly Job → pending network_bonuses appear.
+    [ ] 8. Staff approves bonuses → wallet credited in TZS.
+    [ ] 9. Staff runs Payout Batch → bonuses marked paid; notifications sent.
+    [ ] 10. Distributor POST withdrawal → 403; UI has no Request Withdrawal.
+    [ ] 11. Rank upgrades when lifetime CGV + PPV thresholds met; badge updates.
+
+================================================================================
+END OF TEST PLAN
 ================================================================================

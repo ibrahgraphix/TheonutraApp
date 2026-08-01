@@ -23,10 +23,11 @@ import {
 } from '../../components';
 import type { MainTabParamList } from '../../navigation/types';
 import type { RootStackParamList } from '../../navigation/types';
-import { getDashboardStats } from '../../services/api';
+import { getDashboardStats, getMyCompensationSnapshot } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import type { DashboardStats } from '../../types';
 import { colors, spacing, typography } from '../../theme';
+import type { CompensationSnapshot } from '../../services/api';
 
 type HomeNavigationProp = CompositeNavigationProp<BottomTabNavigationProp<MainTabParamList, 'Home'>, NativeStackNavigationProp<RootStackParamList>>;
 
@@ -44,14 +45,19 @@ export function HomeScreen() {
   const isStaff =
     distributor?.role === 'admin' || distributor?.role === 'company_staff';
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [compensation, setCompensation] = useState<CompensationSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadStats = useCallback(async () => {
     if (!distributor) return;
-    const data = await getDashboardStats(distributor.id);
+    const [data, comp] = await Promise.all([
+      getDashboardStats(distributor.id),
+      isStaff ? Promise.resolve(null) : getMyCompensationSnapshot().catch(() => null),
+    ]);
     setStats(data);
-  }, [distributor]);
+    if (comp) setCompensation(comp);
+  }, [distributor, isStaff]);
 
   useEffect(() => {
     loadStats().finally(() => setLoading(false));
@@ -92,7 +98,11 @@ export function HomeScreen() {
       >
         <Card style={styles.welcomeCard}>
           <View style={styles.welcomeRow}>
-            <Avatar name={distributor.fullName} size={56} />
+            <Avatar
+              imageUrl={distributor.avatarUrl}
+              name={distributor.fullName}
+              size={56}
+            />
             <View style={styles.welcomeText}>
               <Text style={styles.greeting}>Welcome back,</Text>
               <Text style={styles.name}>{distributor.fullName}</Text>
@@ -107,12 +117,29 @@ export function HomeScreen() {
         {!isStaff ? (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>This Month</Text>
+              <Text style={styles.sectionTitle}>Compensation</Text>
               {stats ? <Badge label={stats.period} variant="neutral" /> : null}
             </View>
 
             {loading ? (
               <ActivityIndicator color={colors.primary} size="large" />
+            ) : compensation ? (
+              <View style={styles.statsRow}>
+                <StatCard
+                  label="Rank"
+                  value={compensation.currentRank?.name ?? '—'}
+                />
+                <StatCard
+                  accent="secondary"
+                  label="PPV"
+                  value={`${Math.round(compensation.ppv)}`}
+                />
+                <StatCard
+                  accent="secondary"
+                  label="Lifetime CGV"
+                  value={`${Math.round(compensation.lifetimeCgv)}`}
+                />
+              </View>
             ) : stats ? (
               <View style={styles.statsRow}>
                 <StatCard

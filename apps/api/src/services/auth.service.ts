@@ -17,6 +17,7 @@ export interface LoginResult {
     payment_full_name?: string;
     payment_account_number?: string;
     currencyCode?: string;
+    photoUrl?: string;
   };
 }
 
@@ -63,6 +64,7 @@ export async function login(
       payment_method,
       payment_full_name,
       payment_account_number,
+      photo_url,
       countries (
         name,
         currency_code
@@ -102,6 +104,7 @@ export async function login(
       payment_full_name: profile.payment_full_name as string | undefined,
       payment_account_number: profile.payment_account_number as string | undefined,
       currencyCode: currencyCode,
+      photoUrl: profile.photo_url as string | undefined,
     },
   };
 }

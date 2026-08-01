@@ -5,6 +5,7 @@ import { distributorIdToEmail } from '../utils/distributorAuth.js';
 import { CreateSellerInput } from '../schemas/sellers.schema.js';
 import * as notificationService from './notification.service.js';
 import { deleteCloudinaryAsset } from './uploads.service.js';
+import { applyPlacementToProfile, listStarRanks } from './compensationEngine.service.js';
 
 export interface SellerProfile {
   id: string;
@@ -20,6 +21,7 @@ export interface SellerProfile {
   directDownlineCount: number;
   createdAt: string;
   rankId?: string | null;
+  photoUrl?: string | null;
 }
 
 export interface UpdateSellerInput {
@@ -123,10 +125,16 @@ export async function createSeller(
     throw new ApiError(500, `Failed to look up starting 'Member' rank: ${rankError?.message || 'Not found'}`);
   }
 
-  // Update the newly created profile with the Member rank ID
+  // Update the newly created profile with the Member rank ID + Star 1
+  const starRanks = await listStarRanks();
+  const star1 = starRanks.find((r) => r.code === 'STAR_1') ?? starRanks[0];
+
   const { error: rankUpdateError } = await supabase
     .from('profiles')
-    .update({ rank_id: memberRank.id })
+    .update({
+      rank_id: memberRank.id,
+      ...(star1 ? { star_rank_id: star1.id } : {}),
+    })
     .eq('id', userId);
 
   if (rankUpdateError) {
@@ -134,6 +142,15 @@ export async function createSeller(
     await supabase.from('profiles').delete().eq('id', userId);
     await supabase.auth.admin.deleteUser(userId);
     throw new ApiError(500, `Failed to assign starting rank: ${rankUpdateError.message}`);
+  }
+
+  // 3-leg placement (spillover if sponsor's Left/Center/Right are full)
+  if (referredBy && finalRole === 'distributor') {
+    try {
+      await applyPlacementToProfile(userId, referredBy);
+    } catch (placementError) {
+      console.error(`❌ Failed to assign 3-leg placement: ${placementError}`);
+    }
   }
 
   // 7.5. Notify the upline if this distributor was referred
@@ -224,6 +241,7 @@ export async function listSellers(
     directDownlineCount: downlineCounts[p.id] || 0,
     createdAt: p.created_at,
     rankId: p.rank_id,
+    photoUrl: p.photo_url ?? null,
   }));
 }
 
@@ -270,6 +288,7 @@ export async function getSellerById(id: string): Promise<SellerProfile> {
     directDownlineCount: count || 0,
     createdAt: profile.created_at,
     rankId: profile.rank_id,
+    photoUrl: profile.photo_url ?? null,
   };
 }
 
@@ -489,6 +508,13 @@ export async function hardDeleteSeller(sellerId: string): Promise<void> {
     await deleteCloudinaryAsset(row.document_back_url as string | null);
     await deleteCloudinaryAsset(row.selfie_url as string | null);
   }
+
+  const { data: sellerProfile } = await supabase
+    .from('profiles')
+    .select('photo_url')
+    .eq('id', sellerId)
+    .maybeSingle();
+  await deleteCloudinaryAsset(sellerProfile?.photo_url as string | null);
 
   const { error: kycDeleteError } = await supabase
     .from('kyc_submissions')

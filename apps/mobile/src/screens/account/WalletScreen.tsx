@@ -211,14 +211,25 @@ export function WalletScreen() {
         <Text style={styles.balanceAmount}>
           {wallet ? formatCurrency(wallet.balance, wallet?.currency || 'TZS') : '—'}
         </Text>
-        <Button
-          onPress={handleWithdraw}
-          title="Request Withdrawal"
-          style={styles.withdrawBtn}
-        />
+        {isStaff ? (
+          <Button
+            onPress={handleWithdraw}
+            title="Request Withdrawal"
+            style={styles.withdrawBtn}
+          />
+        ) : (
+          <Text style={styles.kycWarning}>
+            Withdrawals are processed by company staff via the monthly payout batch. Keep your payment number confirmed.
+          </Text>
+        )}
+        {paymentMethod?.pendingChange ? (
+          <Text style={styles.kycWarning}>
+            Payment change pending confirmation: {paymentMethod.pendingChange.new_payment_account_number}
+          </Text>
+        ) : null}
         {kycVerified === false && !isStaff ? (
           <TouchableOpacity onPress={() => navigation.navigate('KycVerification')}>
-            <Text style={styles.kycWarning}>⚠️ Verify your identity to unlock withdrawals</Text>
+            <Text style={styles.kycWarning}>⚠️ Verify your identity for payout eligibility</Text>
           </TouchableOpacity>
         ) : null}
       </View>

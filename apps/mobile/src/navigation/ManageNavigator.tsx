@@ -29,6 +29,8 @@ import { ManageOPBScreen } from '../screens/manage/ManageOPBScreen';
 import { ManageCommissionsScreen } from '../screens/manage/ManageCommissionsScreen';
 import { ManageWithdrawalsScreen } from '../screens/manage/ManageWithdrawalsScreen';
 import { SystemJobsScreen } from '../screens/manage/SystemJobsScreen';
+import { ManageNetworkBonusesScreen } from '../screens/manage/ManageNetworkBonusesScreen';
+import { ManagePaymentChangesScreen } from '../screens/manage/ManagePaymentChangesScreen';
 
 const Stack = createNativeStackNavigator<ManageStackParamList>();
 
@@ -62,6 +64,8 @@ export function ManageNavigator() {
       <Stack.Screen name="CompanyAnalytics" component={CompanyAnalyticsScreen} />
       <Stack.Screen name="ManageOPB" component={ManageOPBScreen} />
       <Stack.Screen name="ManageCommissions" component={ManageCommissionsScreen} />
+      <Stack.Screen name="ManageNetworkBonuses" component={ManageNetworkBonusesScreen} />
+      <Stack.Screen name="ManagePaymentChanges" component={ManagePaymentChangesScreen} />
       <Stack.Screen name="SystemJobs" component={SystemJobsScreen} />
     </Stack.Navigator>
   );

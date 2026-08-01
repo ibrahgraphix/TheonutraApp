@@ -125,6 +125,7 @@ export function DistributorListScreen() {
           renderItem={({ item }) => (
             <ListItem
               left={<Avatar name={item.fullName} size={40} />}
+              left={<Avatar imageUrl={item.avatarUrl} name={item.fullName} size={40} />}
               onPress={() =>
                 navigation.navigate('DistributorDetail', {
                   distributorId: item.id,

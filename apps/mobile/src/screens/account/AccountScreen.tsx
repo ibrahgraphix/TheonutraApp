@@ -39,15 +39,15 @@ import type { AccountStackParamList } from '../../navigation/accountTypes';
 // Backend has no per-wallet currency field yet — using a single default.
 const DEFAULT_CURRENCY = 'USD';
 
-// Active Status Rank color ladder
+// Star rank color ladder (THEONUTRA V1)
 const RANK_COLORS: Record<string, string> = {
-  '1 Star': '#6b7280',
-  '2 Star': '#94a3b8',
-  '3 Star': '#cd7f32',
-  '4 Star': '#06b6d4',
-  '5 Star': '#f59e0b',
-  '6 Star': '#8b5cf6',
-  L: '#dc2626',
+  'Star 1': '#6b7280',
+  'Star 2': '#94a3b8',
+  'Star 3': '#cd7f32',
+  'Star 4': '#06b6d4',
+  'Star 5': '#f59e0b',
+  'Star 6': '#8b5cf6',
+  'Lead Star 7': '#dc2626',
 };
 
 export function AccountScreen() {
@@ -99,9 +99,8 @@ export function AccountScreen() {
 
   if (!distributor) return null;
 
-  const rankColor = compensation?.activeStatusRank
-    ? (RANK_COLORS[compensation.activeStatusRank.name] ?? colors.primary)
-    : colors.primary;
+  const rankName = compensation?.currentRank?.name;
+  const rankColor = rankName ? (RANK_COLORS[rankName] ?? colors.primary) : colors.primary;
 
   return (
     <View style={styles.container}>
@@ -110,36 +109,57 @@ export function AccountScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile card */}
         <Card style={styles.profileCard}>
-          <Avatar name={distributor.fullName} size={56} />
+          <Avatar
+            imageUrl={distributor.avatarUrl}
+            name={distributor.fullName}
+            size={56}
+          />
           <Text style={styles.name}>{distributor.fullName}</Text>
           <Badge label={distributor.distributorId} variant="secondary" />
           <Text style={styles.phone}>{distributor.phone}</Text>
         </Card>
 
-        {/* Compensation Plan card — PPV / CGV / Active Status Rank */}
+        {/* THEONUTRA V1 — Rank / PPV / CGV / Legs */}
         {!isStaff && compensation ? (
           <Card style={[styles.rankCard, { borderLeftColor: rankColor }]}>
             <View style={styles.rankHeader}>
               <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
                 <Text style={styles.rankBadgeText}>
-                  ⭐ {compensation.activeStatusRank.name}
+                  ⭐ {compensation.currentRank?.name ?? 'Unranked'}
+                  {compensation.isActive ? '' : ' · Inactive'}
                 </Text>
               </View>
               <Text style={styles.rankNext}>
-                OPB {compensation.activeStatusRank.opb_percent}%
+                {compensation.currentRank
+                  ? `${compensation.currentRank.bonus_percent}% Active Bonus`
+                  : ''}
               </Text>
             </View>
             <View style={styles.pvRow}>
-              <PvStat label="PPV" value={compensation.ppv} />
-              <PvStat label="CGV" value={compensation.cgv} />
               <PvStat
-                label="Qualified GV"
-                value={Math.max(0, compensation.cgv - compensation.ppv)}
+                label="PPV"
+                value={`${Math.round(compensation.ppv)} / ${Math.round(compensation.ppvRequired)}`}
               />
+              <PvStat label="GPV" value={Math.round(compensation.gpv)} />
+              <PvStat label="CGV" value={Math.round(compensation.lifetimeCgv)} />
             </View>
-            <Text style={styles.rankHint}>
-              PPV = your personal points · CGV = your points + your whole team's points
-            </Text>
+            {compensation.nextRank ? (
+              <Text style={styles.rankHint}>
+                Need {Math.ceil(compensation.cgvNeeded)} CGV more to reach {compensation.nextRank.name}
+                {compensation.ppvNeeded > 0
+                  ? ` · ${Math.ceil(compensation.ppvNeeded)} PPV for active status`
+                  : ''}
+              </Text>
+            ) : (
+              <Text style={styles.rankHint}>
+                PPV = personal this month · GPV = team this month · CGV = lifetime cumulative
+              </Text>
+            )}
+            <View style={styles.legsRow}>
+              <PvStat label="Left" value={Math.round(compensation.legs.left.ppv)} />
+              <PvStat label="Center" value={Math.round(compensation.legs.center.ppv)} />
+              <PvStat label="Right" value={Math.round(compensation.legs.right.ppv)} />
+            </View>
           </Card>
         ) : null}
 
@@ -259,10 +279,11 @@ export function AccountScreen() {
   );
 }
 
-function PvStat({ label, value }: { label: string; value: number }) {
+function PvStat({ label, value }: { label: string; value: number | string }) {
+  const display = typeof value === 'number' ? value.toLocaleString() : value;
   return (
     <View style={styles.pvStat}>
-      <Text style={styles.pvStatValue}>{value.toLocaleString()}</Text>
+      <Text style={styles.pvStatValue}>{display}</Text>
       <Text style={styles.pvStatLabel}>{label}</Text>
     </View>
   );
@@ -372,6 +393,7 @@ const styles = StyleSheet.create({
   rankNext: { ...typography.bodySmall, color: colors.textSecondary },
   rankHint: { ...typography.caption, color: colors.textSecondary },
   pvRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  legsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   pvStat: { alignItems: 'center', flex: 1 },
   pvStatValue: { ...typography.h3, color: colors.primary, fontWeight: '700' },
   pvStatLabel: { ...typography.caption, color: colors.textSecondary },

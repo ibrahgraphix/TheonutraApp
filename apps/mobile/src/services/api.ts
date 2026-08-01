@@ -110,6 +110,7 @@ export async function login(
       payment_full_name: data.user.payment_full_name,
       payment_account_number: data.user.payment_account_number,
       currencyCode: data.user.currencyCode,
+      avatarUrl: (data.user as any).photoUrl,
     }
   };
 }
@@ -968,9 +969,17 @@ export async function changePhone(
 }
 
 export async function getPaymentMethod(): Promise<{
-  payment_method: string;
-  payment_full_name: string;
-  payment_account_number: string;
+  payment_method: string | null;
+  payment_full_name: string | null;
+  payment_account_number: string | null;
+  pendingChange: {
+    id: string;
+    new_payment_method: string;
+    new_payment_full_name: string;
+    new_payment_account_number: string;
+    status: string;
+    created_at: string;
+  } | null;
 }> {
   const response = await fetch(`${API_BASE_URL}/api/account/payment-method`, {
     method: 'GET',
@@ -1049,6 +1058,7 @@ export async function getAllDistributors(): Promise<Distributor[]> {
     referredBy: s.referredBy,
     joinDate: s.createdAt,
     isActive: s.isActive,
+    avatarUrl: s.photoUrl ?? undefined,
   }));
 }
 
@@ -1079,6 +1089,7 @@ export async function searchDistributors(query: string): Promise<Distributor[]> 
     referredBy: s.referredBy,
     joinDate: s.createdAt,
     isActive: s.isActive,
+    avatarUrl: s.photoUrl ?? undefined,
   }));
 }
 
@@ -2528,9 +2539,41 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
 }
 
 export interface CompensationSnapshot {
+  period: string;
   ppv: number;
-  cgv: number;
-  activeStatusRank: {
+  gpv: number;
+  lifetimeCgv: number;
+  isActive: boolean;
+  currentRank: {
+    id: string;
+    code: string;
+    name: string;
+    level_order: number;
+    min_ppv: number;
+    min_cgv: number;
+    bonus_percent: number;
+  } | null;
+  nextRank: {
+    id: string;
+    code: string;
+    name: string;
+    level_order: number;
+    min_ppv: number;
+    min_cgv: number;
+    bonus_percent: number;
+  } | null;
+  ppvRequired: number;
+  cgvRequired: number;
+  ppvNeeded: number;
+  cgvNeeded: number;
+  legs: {
+    left: { memberId: string | null; fullName: string | null; ppv: number };
+    center: { memberId: string | null; fullName: string | null; ppv: number };
+    right: { memberId: string | null; fullName: string | null; ppv: number };
+  };
+  currency: string;
+  /** @deprecated legacy shape — prefer currentRank */
+  activeStatusRank?: {
     id: string;
     name: string;
     level_order: number;
@@ -2538,6 +2581,8 @@ export interface CompensationSnapshot {
     min_ppv: number;
     opb_percent: number;
   };
+  /** @deprecated use lifetimeCgv */
+  cgv?: number;
 }
 
 export async function getMyCompensationSnapshot(month?: string): Promise<CompensationSnapshot> {
@@ -2551,11 +2596,102 @@ export async function getMyCompensationSnapshot(month?: string): Promise<Compens
   return response.json();
 }
 
-export async function getActiveStatusRanks(): Promise<CompensationSnapshot['activeStatusRank'][]> {
-  const response = await fetch(`${API_BASE_URL}/api/compensation/active-status-ranks`, {
+export async function getActiveStatusRanks(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/star-ranks`, {
     headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch ranks'));
+  return response.json();
+}
+
+export async function getPendingNetworkBonuses(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/v1/bonuses/pending`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch network bonuses'));
+  return response.json();
+}
+
+export async function approveNetworkBonus(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/v1/bonuses/${encodeURIComponent(id)}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to approve bonus'));
+}
+
+export async function rejectNetworkBonus(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/v1/bonuses/${encodeURIComponent(id)}/reject`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject bonus'));
+}
+
+export async function runMonthlyCompensationJob(period: string): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/v1/run-monthly`, {
+    method: 'POST',
+    headers: {
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ period }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to run monthly job'));
+  return response.json();
+}
+
+export async function runPayoutBatch(period: string): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/v1/run-payout-batch`, {
+    method: 'POST',
+    headers: {
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ period }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to run payout batch'));
+  return response.json();
+}
+
+export async function getPendingPaymentMethodChanges(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/account/payment-method/pending-changes`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch payment changes'));
+  return response.json();
+}
+
+export async function approvePaymentMethodChange(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/account/payment-method/changes/${encodeURIComponent(id)}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to approve payment change'));
+}
+
+export async function rejectPaymentMethodChange(id: string, notes?: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/account/payment-method/changes/${encodeURIComponent(id)}/reject`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ notes }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject payment change'));
+}
+
+export async function updateMyPhoto(photoUrl: string): Promise<{ photoUrl: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/account/photo`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ photoUrl }),
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to update photo'));
   return response.json();
 }
 
