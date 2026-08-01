@@ -19,6 +19,8 @@ import {
   approveWithdrawal,
   rejectWithdrawal,
   markWithdrawalPaid,
+  markWithdrawalFailed,
+  cancelWithdrawal,
 } from '../../services/api';
 import type { WithdrawalRequest } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/format';
@@ -145,8 +147,7 @@ export function ManageWithdrawalsScreen() {
         }
         setProcessingId(req.id);
         try {
-          // This should be replaced with actual API call
-          // await markWithdrawalFailed(req.id, notes.trim());
+          await markWithdrawalFailed(req.id, notes.trim());
           await load();
         } catch (e) {
           Alert.alert('Error', e instanceof Error ? e.message : 'Failed to mark as failed.');
@@ -169,8 +170,7 @@ export function ManageWithdrawalsScreen() {
           onPress: async () => {
             setProcessingId(req.id);
             try {
-              // This should be replaced with actual API call
-              // await cancelWithdrawal(req.id);
+              await cancelWithdrawal(req.id);
               await load();
             } catch (e) {
               Alert.alert('Error', e instanceof Error ? e.message : 'Failed to cancel.');

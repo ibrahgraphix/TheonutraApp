@@ -1576,6 +1576,32 @@ export async function markWithdrawalPaid(id: string): Promise<void> {
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark withdrawal as paid'));
 }
 
+export async function markWithdrawalFailed(id: string, notes: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/withdrawals/${encodeURIComponent(id)}/mark-failed`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '',
+      },
+      body: JSON.stringify({ notes }),
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to mark withdrawal as failed'));
+}
+
+export async function cancelWithdrawal(id: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/wallet/withdrawals/${encodeURIComponent(id)}/cancel`,
+    {
+      method: 'PUT',
+      headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+    },
+  );
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to cancel withdrawal'));
+}
+
 // ── KYC ───────────────────────────────────────────────────────────────────────
 
 export async function submitKyc(

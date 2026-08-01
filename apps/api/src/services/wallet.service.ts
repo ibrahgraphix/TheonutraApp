@@ -475,6 +475,128 @@ export async function rejectWithdrawal(
 }
 
 /**
+ * Marks a pending withdrawal request as failed (staff only).
+ */
+export async function failWithdrawal(
+  requestId: string,
+  reviewedBy: string,
+  notes: string,
+): Promise<void> {
+  // Fetch request details before failing for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
+  const { error } = await supabase.rpc('fail_withdrawal', {
+    p_request_id: requestId,
+    p_reviewed_by: reviewedBy,
+    p_notes: notes,
+  });
+
+  if (error) {
+    if (error.message.includes('not pending')) {
+      throw new ApiError(400, 'Withdrawal request is not in pending status');
+    }
+    if (error.message.includes('not found')) {
+      throw new ApiError(404, 'Withdrawal request not found');
+    }
+    throw new ApiError(500, `Failed to fail withdrawal: ${error.message}`);
+  }
+
+  // Log audit action
+  await auditLogService.logAction(
+    reviewedBy,
+    'withdrawal_failed',
+    'withdrawal_request',
+    requestId,
+    {
+      distributor_id: request.distributor_id,
+      amount: Number(request.amount),
+      notes,
+    },
+  );
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'failed',
+      Number(request.amount),
+      requestId,
+      notes,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal failed notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the operation
+  }
+}
+
+/**
+ * Cancels a pending withdrawal request (staff only).
+ */
+export async function cancelWithdrawal(
+  requestId: string,
+  reviewedBy: string,
+): Promise<void> {
+  // Fetch request details before cancellation for notification
+  const { data: request, error: fetchError } = await supabase
+    .from('withdrawal_requests')
+    .select('distributor_id, amount')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    throw new ApiError(404, 'Withdrawal request not found');
+  }
+
+  const { error } = await supabase.rpc('cancel_withdrawal', {
+    p_request_id: requestId,
+    p_reviewed_by: reviewedBy,
+  });
+
+  if (error) {
+    if (error.message.includes('not pending')) {
+      throw new ApiError(400, 'Withdrawal request is not in pending status');
+    }
+    if (error.message.includes('not found')) {
+      throw new ApiError(404, 'Withdrawal request not found');
+    }
+    throw new ApiError(500, `Failed to cancel withdrawal: ${error.message}`);
+  }
+
+  // Log audit action
+  await auditLogService.logAction(
+    reviewedBy,
+    'withdrawal_cancelled',
+    'withdrawal_request',
+    requestId,
+    {
+      distributor_id: request.distributor_id,
+      amount: Number(request.amount),
+    },
+  );
+
+  // Send notification
+  try {
+    await notificationService.notifyWithdrawalStatus(
+      request.distributor_id,
+      'cancelled',
+      Number(request.amount),
+      requestId,
+    );
+  } catch (notifError) {
+    console.error(`❌ Failed to send withdrawal cancelled notification: ${notifError}`);
+    // Don't throw - notification failure shouldn't break the operation
+  }
+}
+
+/**
  * Marks an approved withdrawal request as paid (staff only).
  */
 export async function markWithdrawalPaid(requestId: string, reviewedBy: string): Promise<void> {

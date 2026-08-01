@@ -151,6 +151,49 @@ export async function rejectWithdrawalHandler(
     if (!id) {
       throw new ApiError(400, 'Withdrawal ID is required');
     }
+    const { notes } = req.body as { notes?: string };
+    await walletService.rejectWithdrawal(id, req.user.id, notes || '');
+    res.status(200).json({ message: 'Withdrawal request rejected successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PUT /api/wallet/withdrawals/:id/cancel
+ * Cancels a pending withdrawal request. Staff only.
+ */
+export async function cancelWithdrawalHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+    const id = req.params['id'] as string;
+    if (!id) {
+      throw new ApiError(400, 'Withdrawal ID is required');
+    }
+    await walletService.cancelWithdrawal(id, req.user.id);
+    res.status(200).json({ message: 'Withdrawal request cancelled successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new ApiError(401, 'Unauthorized');
+    }
+    const id = req.params['id'] as string;
+    if (!id) {
+      throw new ApiError(400, 'Withdrawal ID is required');
+    }
     const notes = (req.body?.notes as string) || '';
     await walletService.rejectWithdrawal(id, req.user.id, notes);
     res.status(200).json({ message: 'Withdrawal request rejected successfully' });
