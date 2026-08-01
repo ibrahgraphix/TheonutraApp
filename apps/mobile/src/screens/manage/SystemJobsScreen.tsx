@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Constants from 'expo-constants';
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +27,8 @@ export function SystemJobsScreen() {
   const runDailyJob = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/compensation/run-daily', {
+      const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'https://theonutraapp-backend.onrender.com';
+      const response = await fetch(`${API_BASE_URL}/api/compensation/run-daily`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,10 +48,11 @@ export function SystemJobsScreen() {
   const runMonthlyJob = async () => {
     setLoading(true);
     try {
+      const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'https://theonutraapp-backend.onrender.com';
       const now = new Date();
       const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
       
-      const response = await fetch('http://localhost:3001/api/compensation/run-monthly', {
+      const response = await fetch(`${API_BASE_URL}/api/compensation/run-monthly`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,22 +126,6 @@ export function SystemJobsScreen() {
             </View>
           )}
         </Card>
-
-        <Card style={[styles.card, styles.infoCard]}>
-          <Text style={styles.infoTitle}>📋 For Client Demo</Text>
-          <Text style={styles.infoText}>
-            1. Use these buttons to trigger jobs manually for demonstration
-          </Text>
-          <Text style={styles.infoText}>
-            2. Check OPB screen in Manage tab to see pending bonuses
-          </Text>
-          <Text style={styles.infoText}>
-            3. Approve pending bonuses to see wallet credits
-          </Text>
-          <Text style={styles.infoText}>
-            4. In production, these run automatically on schedule
-          </Text>
-        </Card>
       </ScrollView>
     </View>
   );
@@ -153,7 +140,4 @@ const styles = StyleSheet.create({
   button: { marginTop: spacing.sm },
   result: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.backgroundLight, borderRadius: spacing.sm },
   resultText: { ...typography.caption, color: colors.text, marginBottom: spacing.xs },
-  infoCard: { backgroundColor: colors.primaryLight },
-  infoTitle: { ...typography.h4, color: colors.primary, marginBottom: spacing.sm },
-  infoText: { ...typography.body, color: colors.text, marginBottom: spacing.xs },
 });
