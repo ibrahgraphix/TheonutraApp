@@ -25,5 +25,6 @@ export type ManageStackParamList = {
   ManageKyc: undefined;
   CompanyAnalytics: undefined;
   ManageOPB: undefined;
+  ManageCommissions: undefined;
   SystemJobs: undefined;
 };

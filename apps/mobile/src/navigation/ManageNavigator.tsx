@@ -26,6 +26,7 @@ import type { ManageStackParamList } from './manageTypes';
 import { ManageKycScreen } from '../screens/manage/ManageKycScreen';
 import { CompanyAnalyticsScreen } from '../screens/manage/CompanyAnalyticsScreen';
 import { ManageOPBScreen } from '../screens/manage/ManageOPBScreen';
+import { ManageCommissionsScreen } from '../screens/manage/ManageCommissionsScreen';
 import { ManageWithdrawalsScreen } from '../screens/manage/ManageWithdrawalsScreen';
 import { SystemJobsScreen } from '../screens/manage/SystemJobsScreen';
 
@@ -60,6 +61,7 @@ export function ManageNavigator() {
       <Stack.Screen name="ManageKyc" component={ManageKycScreen} />
       <Stack.Screen name="CompanyAnalytics" component={CompanyAnalyticsScreen} />
       <Stack.Screen name="ManageOPB" component={ManageOPBScreen} />
+      <Stack.Screen name="ManageCommissions" component={ManageCommissionsScreen} />
       <Stack.Screen name="SystemJobs" component={SystemJobsScreen} />
     </Stack.Navigator>
   );

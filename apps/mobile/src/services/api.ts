@@ -2555,3 +2555,27 @@ export async function rejectOPB(id: string): Promise<void> {
   });
   if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject OPB bonus'));
 }
+
+export async function getPendingCommissions(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/commissions/pending`, {
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to fetch pending commissions'));
+  return response.json();
+}
+
+export async function approveCommission(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/commissions/${encodeURIComponent(id)}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to approve commission'));
+}
+
+export async function rejectCommission(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/compensation/commissions/${encodeURIComponent(id)}/reject`, {
+    method: 'PATCH',
+    headers: { Authorization: currentAuthToken ? `Bearer ${currentAuthToken}` : '' },
+  });
+  if (!response.ok) throw new Error(parseApiError(await response.text(), 'Failed to reject commission'));
+}

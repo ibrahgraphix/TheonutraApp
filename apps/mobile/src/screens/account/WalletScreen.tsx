@@ -134,11 +134,15 @@ export function WalletScreen() {
           'HaloPesa': 'mobile_money',
         };
         
-        setWithdrawMethod(methodMapping[pm.payment_method] || 'mobile_money');
+        const mappedMethod = methodMapping[pm.payment_method] || 'mobile_money';
+        setWithdrawMethod(mappedMethod);
         setPayoutDetails(pm.payment_account_number || '');
       }
     } catch (error) {
       console.error('Failed to load payment method:', error);
+      // Set default values if payment method fetch fails
+      setWithdrawMethod('mobile_money');
+      setPayoutDetails('');
     }
     
     setShowWithdraw(true);

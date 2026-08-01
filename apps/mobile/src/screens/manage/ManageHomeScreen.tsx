@@ -93,6 +93,11 @@ export function ManageHomeScreen() {
         </View>
         <View style={styles.grid}>
           <ShortcutButton
+            icon="💰"
+            label="Commissions"
+            onPress={() => navigation.navigate('ManageCommissions')}
+          />
+          <ShortcutButton
             icon="⚙️"
             label="System Jobs"
             onPress={() => navigation.navigate('SystemJobs')}
