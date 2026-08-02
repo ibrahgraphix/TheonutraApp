@@ -50,12 +50,31 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
     throw new ApiError(500, `Failed to fetch orders: ${ordersError.message}`);
   }
 
+  // Also fetch customer sales for company overview
+  const { data: customerSales, error: customerSalesError } = await supabase
+    .from('customer_sales')
+    .select('total_amount, currency_code');
+
+  if (customerSalesError) {
+    throw new ApiError(500, `Failed to fetch customer sales: ${customerSalesError.message}`);
+  }
+
   // Properly convert all sales to USD for accurate company-wide totals
   let totalSales = 0;
   let totalSalesUSD = 0;
+  
+  // Process distributor orders
   for (const order of paidOrders ?? []) {
     const amount = Number(order.total_amount);
     const currency = order.currency_code || 'USD';
+    totalSales += amount;
+    totalSalesUSD += convertToUSD(amount, currency);
+  }
+  
+  // Process customer sales
+  for (const sale of customerSales ?? []) {
+    const amount = Number(sale.total_amount);
+    const currency = sale.currency_code || 'USD';
     totalSales += amount;
     totalSalesUSD += convertToUSD(amount, currency);
   }
@@ -140,6 +159,15 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
     throw new ApiError(500, `Failed to fetch orders: ${ordersError.message}`);
   }
 
+  // Also fetch customer sales for country performance
+  const { data: customerSales, error: customerSalesError } = await supabase
+    .from('customer_sales')
+    .select('country_id, total_amount, currency_code');
+
+  if (customerSalesError) {
+    throw new ApiError(500, `Failed to fetch customer sales: ${customerSalesError.message}`);
+  }
+
   const distributorCounts = new Map<string, number>();
   for (const p of profiles ?? []) {
     if (p.country_id) {
@@ -149,6 +177,8 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
 
   // Properly convert each country's sales to USD for comparison
   const salesByCountry = new Map<string, { total: number; totalUSD: number; count: number }>();
+  
+  // Process distributor orders
   for (const o of orders ?? []) {
     if (o.status !== 'paid') continue;
     const existing = salesByCountry.get(o.country_id) ?? { total: 0, totalUSD: 0, count: 0 };
@@ -158,6 +188,18 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
     existing.totalUSD += convertToUSD(amount, orderCurrency);
     existing.count += 1;
     salesByCountry.set(o.country_id, existing);
+  }
+  
+  // Process customer sales
+  for (const sale of customerSales ?? []) {
+    if (!sale.country_id) continue;
+    const existing = salesByCountry.get(sale.country_id) ?? { total: 0, totalUSD: 0, count: 0 };
+    const amount = Number(sale.total_amount);
+    const saleCurrency = sale.currency_code || 'USD';
+    existing.total += amount;
+    existing.totalUSD += convertToUSD(amount, saleCurrency);
+    existing.count += 1;
+    salesByCountry.set(sale.country_id, existing);
   }
 
   return (countries ?? []).map((c) => {

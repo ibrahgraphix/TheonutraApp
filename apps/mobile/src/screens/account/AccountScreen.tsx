@@ -37,7 +37,7 @@ import { colors, spacing, typography } from '../../theme';
 import type { AccountStackParamList } from '../../navigation/accountTypes';
 
 // Backend has no per-wallet currency field yet — using a single default.
-const DEFAULT_CURRENCY = 'USD';
+const DEFAULT_CURRENCY = 'TZS';
 
 // Star rank color ladder (THEONUTRA V1)
 const RANK_COLORS: Record<string, string> = {
@@ -77,7 +77,7 @@ export function AccountScreen() {
       getAnalysisMonths(distributor.id),
       getOrders(distributor.id),
       isStaff ? Promise.resolve(null) : getMyCompensationSnapshot().catch(() => null),
-      getMyWallet().catch(() => null),
+      isStaff ? Promise.resolve(null) : getMyWallet().catch(() => null),
       getNotificationUnreadCount().catch(() => ({ count: 0 })),
     ]).then(([m, o, comp, wb, uc]) => {
       setMonths(m);
@@ -177,11 +177,13 @@ export function AccountScreen() {
 
         {/* Quick links row */}
         <View style={styles.quickLinks}>
-          <QuickLink
-            icon="💰"
-            label={wallet ? formatCurrency(wallet.balance, wallet.currency || DEFAULT_CURRENCY) : 'Wallet'}
-            onPress={() => navigation.navigate('Wallet')}
-          />
+          {!isStaff && (
+            <QuickLink
+              icon="💰"
+              label={wallet ? formatCurrency(wallet.balance, wallet.currency || DEFAULT_CURRENCY) : 'Wallet'}
+              onPress={() => navigation.navigate('Wallet')}
+            />
+          )}
           <QuickLink
             badge={unreadCount}
             icon="🔔"
