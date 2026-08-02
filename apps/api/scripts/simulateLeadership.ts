@@ -20,8 +20,8 @@ async function run() {
   }
   const countryId = country.id;
 
-  // 3. Clean up existing test distributors
-  const testDistributorIds = ['BF-TZ-LEADER', 'BF-TZ-DOWN1', 'BF-TZ-DOWN2', 'BF-TZ-DOWN3'];
+  // 3. Clean up existing test distributors and their profiles
+  const testDistributorIds = ['BF-TZ-LEADER-TEST', 'BF-TZ-DOWN1-TEST', 'BF-TZ-DOWN2-TEST', 'BF-TZ-DOWN3-TEST'];
   for (const distId of testDistributorIds) {
     const { data: existingProfile } = await supabase
       .from('profiles')
@@ -31,12 +31,19 @@ async function run() {
 
     if (existingProfile) {
       console.log(`Cleaning up existing test user ${distId}...`);
-      await supabase.auth.admin.deleteUser(existingProfile.id);
+      // Delete from auth first
+      try {
+        await supabase.auth.admin.deleteUser(existingProfile.id);
+      } catch (authError) {
+        console.log(`Auth deletion failed for ${distId}, continuing...`);
+      }
+      // Delete from profiles table directly
+      await supabase.from('profiles').delete().eq('id', existingProfile.id);
     }
   }
 
   // 4. Create main distributor who will reach leadership
-  console.log('2. Creating main distributor BF-TZ-LEADER...');
+  console.log('2. Creating main distributor BF-TZ-LEADER-TEST...');
   const createLeaderRes = await fetch(`http://localhost:${port}/api/sellers`, {
     method: 'POST',
     headers: {
@@ -44,8 +51,8 @@ async function run() {
       'Authorization': `Bearer ${loginRes.token}`
     },
     body: JSON.stringify({
-      distributorId: 'BF-TZ-LEADER',
-      fullName: 'Leader Distributor',
+      distributorId: 'BF-TZ-LEADER-TEST',
+      fullName: 'Leader Distributor Test',
       phoneNumber: '+255711111111',
       password: 'LeaderPass123!',
       countryId,
@@ -63,7 +70,7 @@ async function run() {
   // 5. Create 3 downline distributors under the leader
   const downlineDistributors: any[] = [];
   for (let i = 1; i <= 3; i++) {
-    const distId = `BF-TZ-DOWN${i}`;
+    const distId = `BF-TZ-DOWN${i}-TEST`;
     console.log(`3.${i}. Creating downline distributor ${distId}...`);
     
     const createDownRes = await fetch(`http://localhost:${port}/api/sellers`, {
@@ -74,7 +81,7 @@ async function run() {
       },
       body: JSON.stringify({
         distributorId: distId,
-        fullName: `Downline Distributor ${i}`,
+        fullName: `Downline Distributor ${i} Test`,
         phoneNumber: `+25571111111${i}`,
         password: `DownPass${i}123!`,
         countryId,
@@ -189,12 +196,54 @@ async function run() {
     console.log(`✅ Created ${orderCount} orders for downline ${i+1}`);
   }
 
-  // 10. Manually set leadership rank for the leader
-  console.log('\n7. Setting leadership rank for leader...');
+  // 10. Set leader to Star 7 first (required for leadership ranks)
+  console.log('\n7. Setting leader to Star 7 (required for leadership)...');
+  const { data: star7Rank } = await supabase
+    .from('star_ranks')
+    .select('id')
+    .eq('code', 'LEAD_STAR_7')
+    .single();
+
+  if (star7Rank) {
+    await supabase
+      .from('profiles')
+      .update({ star_rank_id: star7Rank.id, lifetime_cgv: 12000 })
+      .eq('id', leader.id);
+    console.log('✅ Leader set to Star 7 with 12,000 lifetime CGV');
+  }
+
+  // 11. Set downline distributors to Star 7 as well (to qualify as leaders)
+  console.log('8. Setting downline distributors to Star 7 to qualify as leaders...');
+  if (star7Rank) {
+    for (const downDist of downlineDistributors) {
+      await supabase
+        .from('profiles')
+        .update({ star_rank_id: star7Rank.id, lifetime_cgv: 5000, is_active: true })
+        .eq('id', downDist.id);
+    }
+    console.log('✅ All downline distributors set to Star 7 and active');
+  } else {
+    console.log('❌ Star 7 rank not found, skipping downline rank assignment');
+  }
+
+  // 12. Set yearly GPV for leader to meet SL requirements
+  console.log('9. Setting yearly GPV for leader to meet SL requirements...');
+  const currentYear = new Date().getUTCFullYear();
+  await supabase
+    .from('distributor_yearly_gpv')
+    .upsert({
+      distributor_id: leader.id,
+      year: currentYear,
+      total_gpv: 45000, // Above SL requirement of 40,000
+    }, { onConflict: 'distributor_id,year' });
+  console.log('✅ Leader yearly GPV set to 45,000 (above SL requirement of 40,000)');
+
+  // 13. Set leadership rank to SL (Senior Leader)
+  console.log('10. Setting leadership rank to SL...');
   const { data: slRank } = await supabase
     .from('leadership_ranks')
     .select('id')
-    .eq('name', 'SL')
+    .eq('code', 'SL')
     .single();
 
   if (slRank) {
@@ -202,38 +251,15 @@ async function run() {
       .from('profiles')
       .update({ leadership_rank_id: slRank.id })
       .eq('id', leader.id);
-    console.log('✅ Leader set to SL (Silver Leadership) rank');
+    console.log('✅ Leader set to SL (Senior Leader) rank');
   }
-
-  // 11. Set active status ranks for downline to qualify as leaders
-  console.log('8. Setting active status ranks for downline distributors...');
-  const { data: lRank } = await supabase
-    .from('active_status_ranks')
-    .select('id')
-    .eq('name', 'L')
-    .single();
-
-  if (lRank) {
-    for (const downDist of downlineDistributors) {
-      await supabase
-        .from('profiles')
-        .update({ active_status_rank_id: lRank.id })
-        .eq('id', downDist.id);
-    }
-    console.log('✅ All downline distributors set to L rank');
-  }
-
-  // 12. Update lifetime CGV for leader to meet requirements
-  console.log('9. Updating lifetime CGV for leader...');
-  await supabase
-    .from('profiles')
-    .update({ lifetime_cgv: 1000 })
-    .eq('id', leader.id);
-  console.log('✅ Leader lifetime CGV set to 1000');
 
   console.log('\n🎉 Leadership simulation completed! 🎉');
-  console.log('\nYou can now log in as BF-TZ-LEADER with password LeaderPass123! to see the results in the frontend.');
-  console.log('Leader has been set to SL (Silver Leadership) rank with 3 qualified downline leaders.');
+  console.log('\nYou can now log in as BF-TZ-LEADER-TEST with password LeaderPass123! to see the results in the frontend.');
+  console.log('Leader has been set to SL (Senior Leader) rank with:');
+  console.log('- Star 7 rank with 12,000 lifetime CGV');
+  console.log('- 45,000 yearly GPV (above 40,000 requirement)');
+  console.log('- 3 qualified downline leaders (Star 7)');
 }
 
 run().catch((err) => {

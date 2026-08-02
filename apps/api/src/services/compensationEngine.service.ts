@@ -2,6 +2,7 @@
  * THEONUTRA V1 Compensation Engine
  * PPV (monthly personal) → GPV (monthly team) → Lifetime CGV → Star ranks
  * Active Monthly Bonus + Differential Commission (PV → USD → TZS)
+ * Leadership Ranks (SL, DL, SDL) with yearly GPV and qualified leaders
  */
 import { supabase } from '../config/supabase.js';
 import { ApiError } from '../middleware/error.middleware.js';
@@ -17,6 +18,17 @@ export interface StarRank {
   min_ppv: number;
   min_cgv: number;
   bonus_percent: number;
+}
+
+export interface LeadershipRank {
+  id: string;
+  code: string;
+  name: string;
+  level_order: number;
+  min_ppv: number;
+  min_yearly_gpv: number;
+  required_leaders: number;
+  leadership_bonus_pct: number;
 }
 
 export interface CompensationSnapshotV1 {
@@ -37,6 +49,9 @@ export interface CompensationSnapshotV1 {
     right: { memberId: string | null; fullName: string | null; ppv: number };
   };
   currency: string;
+  leadershipRank: LeadershipRank | null;
+  yearlyGpv: number;
+  qualifiedLeadersCount: number;
 }
 
 export interface NetworkBonusRow {
@@ -83,6 +98,24 @@ export async function listStarRanks(): Promise<StarRank[]> {
     .order('level_order', { ascending: true });
   if (error) throw new ApiError(500, `Failed to fetch star ranks: ${error.message}`);
   return (data ?? []).map(mapStarRank);
+}
+
+export async function listLeadershipRanks(): Promise<LeadershipRank[]> {
+  const { data, error } = await supabase
+    .from('leadership_ranks')
+    .select('*')
+    .order('level_order', { ascending: true });
+  if (error) throw new ApiError(500, `Failed to fetch leadership ranks: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    code: r.code,
+    name: r.name,
+    level_order: Number(r.level_order),
+    min_ppv: Number(r.min_ppv),
+    min_yearly_gpv: Number(r.min_yearly_gpv),
+    required_leaders: Number(r.required_leaders),
+    leadership_bonus_pct: Number(r.leadership_bonus_pct),
+  }));
 }
 
 function mapStarRank(r: any): StarRank {
@@ -193,6 +226,68 @@ export function resolveStarRank(ranks: StarRank[], ppv: number, lifetimeCgv: num
   return matched;
 }
 
+/** Calculate yearly GPV for leadership qualification */
+export async function getYearlyGPV(distributorId: string, year?: number): Promise<number> {
+  const currentYear = year || new Date().getUTCFullYear();
+  const { data, error } = await supabase
+    .from('distributor_yearly_gpv')
+    .select('total_gpv')
+    .eq('distributor_id', distributorId)
+    .eq('year', currentYear)
+    .maybeSingle();
+  
+  if (error) throw new ApiError(500, `Failed to fetch yearly GPV: ${error.message}`);
+  return Number(data?.total_gpv ?? 0);
+}
+
+/** Count qualified downline leaders (Star 7 or higher with active status) */
+export async function countQualifiedDownlineLeaders(distributorId: string): Promise<number> {
+  // Get direct recruits
+  const { data: directRecruits, error } = await supabase
+    .from('profiles')
+    .select('id, is_active, star_rank_id')
+    .eq('referred_by', distributorId);
+
+  if (error) throw new ApiError(500, `Failed to fetch downline: ${error.message}`);
+  if (!directRecruits || directRecruits.length === 0) return 0;
+
+  // Get Star 7 rank ID
+  const { data: star7Rank } = await supabase
+    .from('star_ranks')
+    .select('id')
+    .eq('code', 'LEAD_STAR_7')
+    .single();
+
+  if (!star7Rank) return 0;
+
+  let count = 0;
+  for (const recruit of directRecruits) {
+    // Check if recruit is Star 7 or higher and active
+    if (recruit.is_active && recruit.star_rank_id === star7Rank.id) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/** Resolve leadership rank based on yearly GPV and qualified leaders */
+export async function resolveLeadershipRank(
+  distributorId: string,
+  ppv: number,
+): Promise<LeadershipRank | null> {
+  const ranks = await listLeadershipRanks();
+  const yearlyGpv = await getYearlyGPV(distributorId);
+  const qualifiedLeaders = await countQualifiedDownlineLeaders(distributorId);
+
+  const sorted = [...ranks].sort((a, b) => b.level_order - a.level_order);
+  for (const rank of sorted) {
+    if (ppv >= rank.min_ppv && yearlyGpv >= rank.min_yearly_gpv && qualifiedLeaders >= rank.required_leaders) {
+      return rank;
+    }
+  }
+  return null;
+}
+
 export function isRankActive(rank: StarRank | null, ppv: number): boolean {
   if (!rank) return false;
   return ppv >= rank.min_ppv;
@@ -298,7 +393,7 @@ export async function getMyCompensationSnapshotV1(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('star_rank_id, countries(currency_code)')
+    .select('star_rank_id, leadership_rank_id, countries(currency_code)')
     .eq('id', distributorId)
     .single();
 
@@ -319,6 +414,11 @@ export async function getMyCompensationSnapshotV1(
   const ppvRequired = currentRank?.min_ppv ?? ranks[0]?.min_ppv ?? 0;
   const cgvRequired = nextRank?.min_cgv ?? currentRank?.min_cgv ?? 0;
 
+  // Leadership rank calculation
+  const leadershipRank = await resolveLeadershipRank(distributorId, ppv);
+  const yearlyGpv = await getYearlyGPV(distributorId);
+  const qualifiedLeadersCount = await countQualifiedDownlineLeaders(distributorId);
+
   return {
     period,
     ppv,
@@ -333,6 +433,9 @@ export async function getMyCompensationSnapshotV1(
     cgvNeeded: Math.max(0, (nextRank?.min_cgv ?? 0) - lifetimeCgv),
     legs: await getDirectLegs(distributorId, period),
     currency,
+    leadershipRank,
+    yearlyGpv,
+    qualifiedLeadersCount,
   };
 }
 

@@ -5,9 +5,10 @@
     "skipLibCheck": true,
     "jsx": "react-native",
     "lib": ["ES2020"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "**/*.ts",

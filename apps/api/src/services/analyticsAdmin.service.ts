@@ -51,12 +51,19 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
   }
 
   // Also fetch customer sales for company overview
-  const { data: customerSales, error: customerSalesError } = await supabase
-    .from('customer_sales')
-    .select('total_amount, currency_code');
-
-  if (customerSalesError) {
-    throw new ApiError(500, `Failed to fetch customer sales: ${customerSalesError.message}`);
+  let customerSales: any[] = [];
+  try {
+    const { data: csData, error: csError } = await supabase
+      .from('customer_sales')
+      .select('total_amount, countries!inner(currency_code)');
+    
+    if (!csError && csData) {
+      customerSales = csData;
+    } else if (csError) {
+      console.warn('Failed to fetch customer sales for company overview:', csError.message);
+    }
+  } catch (error) {
+    console.warn('Error fetching customer sales:', error);
   }
 
   // Properly convert all sales to USD for accurate company-wide totals
@@ -74,7 +81,7 @@ export async function getCompanyOverview(): Promise<CompanyOverview> {
   // Process customer sales
   for (const sale of customerSales ?? []) {
     const amount = Number(sale.total_amount);
-    const currency = sale.currency_code || 'USD';
+    const currency = (sale.countries as any)?.currency_code || 'USD';
     totalSales += amount;
     totalSalesUSD += convertToUSD(amount, currency);
   }
@@ -160,12 +167,19 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
   }
 
   // Also fetch customer sales for country performance
-  const { data: customerSales, error: customerSalesError } = await supabase
-    .from('customer_sales')
-    .select('country_id, total_amount, currency_code');
-
-  if (customerSalesError) {
-    throw new ApiError(500, `Failed to fetch customer sales: ${customerSalesError.message}`);
+  let customerSales: any[] = [];
+  try {
+    const { data: csData, error: csError } = await supabase
+      .from('customer_sales')
+      .select('country_id, total_amount, countries!inner(currency_code)');
+    
+    if (!csError && csData) {
+      customerSales = csData;
+    } else if (csError) {
+      console.warn('Failed to fetch customer sales for country performance:', csError.message);
+    }
+  } catch (error) {
+    console.warn('Error fetching customer sales:', error);
   }
 
   const distributorCounts = new Map<string, number>();
@@ -195,7 +209,7 @@ export async function getCountryPerformance(): Promise<CountryPerformance[]> {
     if (!sale.country_id) continue;
     const existing = salesByCountry.get(sale.country_id) ?? { total: 0, totalUSD: 0, count: 0 };
     const amount = Number(sale.total_amount);
-    const saleCurrency = sale.currency_code || 'USD';
+    const saleCurrency = (sale.countries as any)?.currency_code || 'USD';
     existing.total += amount;
     existing.totalUSD += convertToUSD(amount, saleCurrency);
     existing.count += 1;
