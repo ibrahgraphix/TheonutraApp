@@ -88,7 +88,8 @@ export function SystemJobsScreen() {
           <Text style={styles.title}>Monthly Payout Batch</Text>
           <Text style={styles.description}>
             Marks approved network bonuses as paid using each distributor&apos;s confirmed payment
-            number. Approve bonuses first under Network Bonuses.
+            number. Approve bonuses first under Network Bonuses. OPB bonuses are a separate legacy
+            path and are not created by this V1 monthly job.
           </Text>
           <Button loading={loading} onPress={runPayout} style={styles.button} title="Run Payout Batch" />
           {payoutResult ? (

@@ -54,6 +54,7 @@ export function ProductDetailScreen() {
       price: product.price,
       currency: product.currency,
       imageUrl: product.imageUrl,
+      pv: product.pv ?? 0,
     };
   };
 
@@ -111,6 +112,7 @@ export function ProductDetailScreen() {
           <Text style={styles.price}>
             {formatCurrency(product.price, product.currency)}
           </Text>
+          <Text style={styles.pvLabel}>{product.pv ?? 0} PV</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Description</Text>
@@ -185,6 +187,11 @@ const styles = StyleSheet.create({
   price: {
     ...typography.h2,
     color: colors.primary,
+  },
+  pvLabel: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   sectionTitle: {
     ...typography.label,

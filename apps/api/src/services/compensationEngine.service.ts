@@ -268,15 +268,21 @@ async function getDirectLegs(distributorId: string, period: string) {
   const empty = { memberId: null as string | null, fullName: null as string | null, ppv: 0 };
   const result = { left: { ...empty }, center: { ...empty }, right: { ...empty } };
 
+  // Prefer placement_sponsor_id; also include referred_by directs that still lack placement
+  // (legacy rows where leg_position was set but placement_sponsor_id was never filled).
   const { data: directs } = await supabase
     .from('profiles')
-    .select('id, full_name, leg_position')
-    .eq('placement_sponsor_id', distributorId)
-    .in('leg_position', LEGS);
+    .select('id, full_name, leg_position, placement_sponsor_id, referred_by')
+    .in('leg_position', LEGS)
+    .or(`placement_sponsor_id.eq.${distributorId},referred_by.eq.${distributorId}`);
 
   for (const d of directs ?? []) {
     const leg = d.leg_position as LegPosition;
     if (!LEGS.includes(leg)) continue;
+    const sponsorId = (d.placement_sponsor_id as string | null) ?? (d.referred_by as string | null);
+    if (sponsorId !== distributorId) continue;
+    // Prefer the member already seated on this leg; keep first if duplicate
+    if (result[leg].memberId) continue;
     const ppv = await calculatePPV(d.id, period);
     result[leg] = { memberId: d.id, fullName: d.full_name, ppv };
   }
@@ -586,7 +592,6 @@ export async function approveNetworkBonus(bonusId: string, staffId: string): Pro
     source_id: bonus.id,
     amount,
     balance_after: newBalance,
-    description: `${bonus.bonus_type} ${bonus.period} (${bonus.bonus_pv} PV)`,
   });
 
   try {

@@ -18,6 +18,7 @@
     "test:content": "tsx scripts/testContentCloudinary.ts",
     "test:ranks": "tsx scripts/testRanksPV.ts",
     "test:customer-sales": "tsx scripts/testCustomerSales.ts",
+    "test:v1-monthly-smoke": "tsx scripts/smokeV1Monthly.ts",
     "test:team-bonus": "tsx scripts/testTeamBonus.ts",
     "test:wallet": "tsx scripts/testWallet.ts",
     "test:manual-bonus": "tsx scripts/testManualBonus.ts",

@@ -47,9 +47,11 @@ export function CheckoutScreen() {
   const distributor = useAuthStore((s) => s.distributor);
   const items = useCartStore((s) => s.items);
   const getTotal = useCartStore((s) => s.getTotal);
+  const getTotalPv = useCartStore((s) => s.getTotalPv);
   const clearCart = useCartStore((s) => s.clearCart);
   const currency = useCartStore((s) => s.getCurrency()) ?? 'USD';
   const total = getTotal();
+  const totalPv = getTotalPv();
 
   const [activeTab, setActiveTab] = useState<PaymentTab>('bank_transfer');
   const [bankDetails, setBankDetails] = useState<CompanyBankDetails | null>(null);
@@ -124,7 +126,7 @@ export function CheckoutScreen() {
       <ShopHeader onBack={() => navigation.goBack()} title="Checkout" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <OrderSummary currency={currency} items={items} total={total} />
+        <OrderSummary currency={currency} items={items} total={total} totalPv={totalPv} />
 
         <View style={styles.tabs}>
           <Pressable

@@ -316,6 +316,7 @@ function mapApiProductToListing(
     imageUrl: string | null;
     price?: number;
     currencyCode?: string;
+    pv?: number;
   },
   countryName: string,
 ): ProductListing {
@@ -336,6 +337,7 @@ function mapApiProductToListing(
     price: p.price ?? 0,
     currency: p.currencyCode ?? 'USD',
     available: true,
+    pv: Number(p.pv ?? 0),
   };
 }
 
@@ -361,6 +363,7 @@ export async function getProducts(country: string): Promise<ProductListing[]> {
     imageUrl: string | null;
     price?: number;
     currencyCode?: string;
+    pv?: number;
   }>;
 
   return products.map((p) => mapApiProductToListing(p, country));
@@ -451,6 +454,7 @@ export async function getProductById(
       imageUrl: string | null;
       price?: number;
       currencyCode?: string;
+      pv?: number;
     };
 
     return mapApiProductToListing(p, country);
@@ -475,7 +479,7 @@ const MOBILE_PROVIDER_SLUG: Record<string, string> = {
   'M-Pesa':       'mpesa',
   'Tigo Pesa':    'tigopesa',
   'Airtel Money': 'airtelmoney',
-  'Mixx by Yas':  'airtelmoney', // Mixx is Airtel's brand; map to nearest supported slug
+  'Mixx by Yas':  'mixx',
   'HaloPesa':     'halopesa',
 };
 

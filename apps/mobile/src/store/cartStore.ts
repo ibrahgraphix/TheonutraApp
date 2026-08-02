@@ -10,6 +10,7 @@ interface CartState {
   setItemQuantity: (item: CartItem) => void;
   clearCart: () => void;
   getTotal: () => number;
+  getTotalPv: () => number;
   getItemCount: () => number;
   getCurrency: () => string | null;
 }
@@ -62,6 +63,9 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   getTotal: () =>
     get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+
+  getTotalPv: () =>
+    get().items.reduce((sum, item) => sum + (item.pv ?? 0) * item.quantity, 0),
 
   getItemCount: () =>
     get().items.reduce((sum, item) => sum + item.quantity, 0),

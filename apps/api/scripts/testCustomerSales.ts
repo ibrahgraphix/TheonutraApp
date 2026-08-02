@@ -2,13 +2,18 @@
  * scripts/testCustomerSales.ts — Step 13 verification (Retail Profit)
  *
  * Prerequisites:
- *  1. Dev server running (npm -w api run dev)
- *  2. Database has customer_sales, customer_sale_items tables (Phase 1 migration)
+ *  1. API must be running (npm -w api run dev) — otherwise you get "fetch failed"
+ *  2. Database has customer_sales, customer_sale_items tables
  *  3. product_prices.distributor_price column exists
+ *  4. Prefer: npm -w api run seed:catalog (sets product PV + wholesale prices)
+ *
+ * V1 contract (Checkout):
+ *  - Retail profit = TZS wallet credit (outside network PV engine)
+ *  - Customer-sale PV feeds PPV via /ranks/me and /compensation/v1/me
+ *  - Network Active Monthly + Differential come from Run Monthly Job only
  *
  * Run:
  *   npm -w api run test:customer-sales
- *   (add to package.json scripts: "test:customer-sales": "tsx scripts/testCustomerSales.ts")
  */
 
 import '../src/config/env.js';
@@ -215,6 +220,28 @@ async function run() {
   }
   console.log('  ✅  Retail profit amount is correct!\n');
 
+  // ── Wallet credit for retail profit ───────────────────────────────────────
+  console.log('4️⃣b  Verifying wallet credit for retail profit…');
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('distributor_id', sellerId)
+    .maybeSingle();
+  if (!wallet || Number(wallet.balance) < expectedProfit) {
+    throw new Error(`Wallet balance should include at least ${expectedProfit} retail profit`);
+  }
+  const { data: walletTx } = await supabase
+    .from('wallet_transactions')
+    .select('*')
+    .eq('distributor_id', sellerId)
+    .eq('source_id', commissions.id)
+    .eq('source_type', 'commission')
+    .maybeSingle();
+  if (!walletTx) {
+    throw new Error('No wallet_transactions row for retail_profit commission');
+  }
+  console.log(`  ✅  Wallet tx amount: ${Number(walletTx.amount)} (expected ${expectedProfit})\n`);
+
   // ─────────────────────────────────────────────────────────────────────────
   // TEST 5 — GET /api/customer-sales to confirm the logged sale appears
   // ─────────────────────────────────────────────────────────────────────────
@@ -250,6 +277,17 @@ async function run() {
     throw new Error(`personalPV (${rankData.personalPV}) should be at least ${expectedPV} from the customer sale`);
   }
   console.log('  ✅  Personal PV correctly includes customer sale PV!\n');
+
+  console.log('7️⃣   Verifying V1 compensation snapshot PPV…');
+  const compRes = await api('GET', '/compensation/v1/me', sellerToken!);
+  console.log(`  Status: ${compRes.status}`);
+  if (compRes.status !== 200) {
+    throw new Error(`Failed to fetch V1 compensation: ${JSON.stringify(compRes.json)}`);
+  }
+  if (Number(compRes.json.ppv) < expectedPV) {
+    throw new Error(`V1 PPV (${compRes.json.ppv}) should be at least ${expectedPV}`);
+  }
+  console.log(`  ✅  V1 PPV: ${compRes.json.ppv}\n`);
 
   console.log('─────────────────────────────────────────────────────────────');
   console.log('🎉  ALL STEP 13 VERIFICATION TESTS PASSED!');

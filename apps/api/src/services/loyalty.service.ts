@@ -70,7 +70,7 @@ export async function getMyLoyaltyHistory(
   const { count, error: countError } = await supabase
     .from('loyalty_transactions')
     .select('*', { count: 'exact', head: true })
-    .eq('distributor_id', distributorId);
+    .eq('profile_id', distributorId);
 
   if (countError) {
     throw new ApiError(500, `Failed to count loyalty transactions: ${countError.message}`);
@@ -80,7 +80,7 @@ export async function getMyLoyaltyHistory(
   const { data, error } = await supabase
     .from('loyalty_transactions')
     .select('*')
-    .eq('distributor_id', distributorId)
+    .eq('profile_id', distributorId)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 

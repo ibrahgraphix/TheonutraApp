@@ -15,8 +15,10 @@ export function CartScreen() {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
   const getTotal = useCartStore((s) => s.getTotal);
+  const getTotalPv = useCartStore((s) => s.getTotalPv);
   const currency = useCartStore((s) => s.getCurrency()) ?? 'USD';
   const total = getTotal();
+  const totalPv = getTotalPv();
 
   if (items.length === 0) {
     return (
@@ -48,7 +50,7 @@ export function CartScreen() {
             onRemove={() => removeItem(item.productId)}
           />
         ))}
-        <OrderSummary currency={currency} items={items} total={total} />
+        <OrderSummary currency={currency} items={items} total={total} totalPv={totalPv} />
       </ScrollView>
 
       <View style={styles.footer}>

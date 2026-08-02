@@ -30,28 +30,44 @@ const PRODUCTS = [
     name:        'Theonutra Gold Capsules',
     description: 'Premium theobroma-based wellness supplement, 60 caps.',
     image_url:   null,
+    pv:          10,
   },
   {
     name:        'Theonutra Slim Shake',
     description: 'Meal-replacement shake with natural cocoa extract, chocolate flavour.',
     image_url:   null,
+    pv:          8,
   },
   {
     name:        'Theonutra Immune Booster',
     description: 'High-potency vitamin-C blend with theobroma for daily immunity support.',
     image_url:   null,
+    pv:          9,
   },
   {
     name:        'Theonutra Energy Bar',
     description: 'No-added-sugar energy bar with cacao nibs and oats.',
     image_url:   null,
+    pv:          3,
   },
   {
     name:        'Theonutra Herbal Tea',
     description: 'Relaxing blend of theobroma leaf, chamomile, and lemongrass, 20 bags.',
     image_url:   null,
+    pv:          4,
   },
 ] as const;
+
+/** Extra catalog names used in manual / test_plan flows — ensure non-zero PV when present. */
+const EXTRA_PRODUCT_PV: Record<string, number> = {
+  'Omega 3 Capsules': 10,
+  'Omega3 capsule': 10,
+  'Omega3 Capsule': 10,
+  'Slimfit tea': 5,
+  'Slimfit Tea': 5,
+  'Headache Pills': 2,
+  'Retail Profit Test Product': 50,
+};
 
 // Price per product per country (in local currency)
 // Structure: [productIndex, isoCode, price]
@@ -67,6 +83,11 @@ const PRICES: [number, string, number][] = [
   [4, 'TZ', 22_000],
   [4, 'KE',  1_300],
 ];
+
+/** Wholesale ≈ 80% of customer/retail price when distributor_price is missing. */
+function wholesaleFromRetail(price: number): number {
+  return Math.round(price * 0.8);
+}
 
 // ── Seed function ──────────────────────────────────────────────────────────────
 
@@ -133,6 +154,15 @@ async function seedCatalog() {
 
     if (existing) {
       product = existing;
+      // Keep catalog PV in sync for V1 compensation (PPV = qty × product.pv)
+      const { error: pvErr } = await supabase
+        .from('products')
+        .update({ pv: p.pv })
+        .eq('id', existing.id);
+      if (pvErr) {
+        console.error(`  ❌  Failed to update PV for "${p.name}":`, pvErr.message);
+        process.exit(1);
+      }
     } else {
       // Insert new product
       const { data: inserted, error: productErr } = await supabase
@@ -143,6 +173,7 @@ async function seedCatalog() {
           image_url:   p.image_url,
           is_active:   true,
           created_by:  adminId,
+          pv:          p.pv,
         })
         .select('id, name')
         .single();
@@ -154,14 +185,15 @@ async function seedCatalog() {
       product = inserted;
     }
 
-    // Gather price rows for this product
+    // Gather price rows for this product (retail + wholesale)
     const priceRows = PRICES
       .filter(([idx]) => idx === i)
       .map(([, iso, price]) => ({
-        product_id:   product.id,
-        country_id:   countryIdByIso[iso],
+        product_id:         product.id,
+        country_id:         countryIdByIso[iso],
         price,
-        is_available: true,
+        distributor_price:  wholesaleFromRetail(price),
+        is_available:       true,
       }))
       .filter((r) => r.country_id); // skip if country wasn't seeded
 
@@ -179,11 +211,59 @@ async function seedCatalog() {
     const priceStr = priceRows
       .map((r) => {
         const iso = Object.entries(countryIdByIso).find(([, id]) => id === r.country_id)?.[0];
-        return `${iso}: ${r.price.toLocaleString()}`;
+        return `${iso}: ${r.price.toLocaleString()} (WS ${r.distributor_price.toLocaleString()})`;
       })
       .join(', ');
     const status = existing ? '(already existed)' : '(newly inserted)';
-    console.log(`  ✅  "${product.name}" ${status} — prices: ${priceStr}`);
+    console.log(`  ✅  "${product.name}" ${status} — PV ${p.pv} — prices: ${priceStr}`);
+  }
+
+  // Ensure common manual/test products have non-zero PV when they already exist
+  console.log('\n  [3b] Ensuring extra product PV…');
+  for (const [name, pv] of Object.entries(EXTRA_PRODUCT_PV)) {
+    const { data: extra } = await supabase
+      .from('products')
+      .select('id, pv')
+      .ilike('name', name)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!extra) continue;
+    if (Number(extra.pv ?? 0) > 0 && Number(extra.pv) === pv) {
+      console.log(`  ✅  "${name}" already has PV ${pv}`);
+      continue;
+    }
+    const { error: extraErr } = await supabase
+      .from('products')
+      .update({ pv })
+      .eq('id', extra.id);
+    if (extraErr) {
+      console.error(`  ❌  Failed to set PV for "${name}":`, extraErr.message);
+    } else {
+      console.log(`  ✅  "${name}" PV → ${pv}`);
+    }
+  }
+
+  // Backfill placement_sponsor_id from referred_by where missing (legs UI)
+  console.log('\n  [3c] Backfilling placement_sponsor_id…');
+  const { data: missingPlacement, error: missingErr } = await supabase
+    .from('profiles')
+    .select('id, referred_by')
+    .is('placement_sponsor_id', null)
+    .not('referred_by', 'is', null)
+    .eq('role', 'distributor');
+  if (missingErr) {
+    console.error('  ⚠️   Could not scan placement gaps:', missingErr.message);
+  } else {
+    let fixed = 0;
+    for (const row of missingPlacement ?? []) {
+      const { error: fixErr } = await supabase
+        .from('profiles')
+        .update({ placement_sponsor_id: row.referred_by })
+        .eq('id', row.id)
+        .is('placement_sponsor_id', null);
+      if (!fixErr) fixed += 1;
+    }
+    console.log(`  ✅  Backfilled placement_sponsor_id on ${fixed} profile(s)`);
   }
 
   console.log('\n─────────────────────────────────────────────────────────────');

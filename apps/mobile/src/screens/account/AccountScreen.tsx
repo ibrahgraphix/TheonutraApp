@@ -156,9 +156,21 @@ export function AccountScreen() {
               </Text>
             )}
             <View style={styles.legsRow}>
-              <PvStat label="Left" value={Math.round(compensation.legs.left.ppv)} />
-              <PvStat label="Center" value={Math.round(compensation.legs.center.ppv)} />
-              <PvStat label="Right" value={Math.round(compensation.legs.right.ppv)} />
+              <PvStat
+                label="Left"
+                value={Math.round(compensation.legs.left.ppv)}
+                hint={compensation.legs.left.fullName}
+              />
+              <PvStat
+                label="Center"
+                value={Math.round(compensation.legs.center.ppv)}
+                hint={compensation.legs.center.fullName}
+              />
+              <PvStat
+                label="Right"
+                value={Math.round(compensation.legs.right.ppv)}
+                hint={compensation.legs.right.fullName}
+              />
             </View>
           </Card>
         ) : null}
@@ -279,12 +291,25 @@ export function AccountScreen() {
   );
 }
 
-function PvStat({ label, value }: { label: string; value: number | string }) {
+function PvStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number | string;
+  hint?: string | null;
+}) {
   const display = typeof value === 'number' ? value.toLocaleString() : value;
   return (
     <View style={styles.pvStat}>
       <Text style={styles.pvStatValue}>{display}</Text>
       <Text style={styles.pvStatLabel}>{label}</Text>
+      {hint ? (
+        <Text numberOfLines={1} style={styles.pvStatHint}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -397,6 +422,7 @@ const styles = StyleSheet.create({
   pvStat: { alignItems: 'center', flex: 1 },
   pvStatValue: { ...typography.h3, color: colors.primary, fontWeight: '700' },
   pvStatLabel: { ...typography.caption, color: colors.textSecondary },
+  pvStatHint: { ...typography.caption, color: colors.textSecondary, fontSize: 10, marginTop: 2, textAlign: 'center' },
   quickLinks: {
     flexDirection: 'row',
     gap: spacing.sm,

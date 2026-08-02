@@ -56,12 +56,31 @@ export async function getMonthlyOverview(distributorId: string, month?: string):
   }
 
   // Convert personal sales to user's currency
-  const personalSales = (personalSalesData ?? []).reduce((sum, sale) => {
+  let personalSales = (personalSalesData ?? []).reduce((sum, sale) => {
     const saleAmount = Number(sale.amount);
     const saleCurrency = (sale.orders as any)?.currency_code || 'USD';
     const amountInUSD = convertToUSD(saleAmount, saleCurrency);
     const amountInUserCurrency = convertFromUSD(amountInUSD, currency);
     return sum + amountInUserCurrency;
+  }, 0);
+
+  // Include customer (retail) sales logged by this distributor in the same period
+  const { data: customerSalesData, error: customerSalesError } = await supabase
+    .from('customer_sales')
+    .select('total_amount, countries!inner(currency_code)')
+    .eq('distributor_id', distributorId)
+    .gte('created_at', startDate.toISOString())
+    .lt('created_at', endDate.toISOString());
+
+  if (customerSalesError) {
+    throw new ApiError(500, `Failed to fetch personal customer sales: ${customerSalesError.message}`);
+  }
+
+  personalSales += (customerSalesData ?? []).reduce((sum, sale) => {
+    const saleAmount = Number(sale.total_amount);
+    const saleCurrency = (sale.countries as any)?.currency_code || currency;
+    const amountInUSD = convertToUSD(saleAmount, saleCurrency);
+    return sum + convertFromUSD(amountInUSD, currency);
   }, 0);
 
   // 2. Team sales this month (using downline_tree view to get member IDs, then aggregate sales)

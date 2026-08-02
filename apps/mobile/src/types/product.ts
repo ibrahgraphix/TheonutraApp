@@ -18,4 +18,6 @@ export interface ProductListing extends Product {
   price: number;
   currency: string;
   available: boolean;
+  /** Point value used for cart Total PV and PPV. */
+  pv: number;
 }

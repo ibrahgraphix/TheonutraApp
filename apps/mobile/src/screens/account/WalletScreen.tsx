@@ -187,6 +187,15 @@ export function WalletScreen() {
     return '🔄';
   };
 
+  const txLabel = (tx: { type: string; source_type?: string; description?: string | null }) => {
+    if (tx.description) return tx.description;
+    if (tx.source_type === 'commission') return 'Retail Profit / Commission';
+    if (tx.source_type === 'opb_bonus') return 'OPB Bonus';
+    if (tx.source_type === 'withdrawal') return 'Withdrawal';
+    if (tx.source_type === 'manual_adjustment') return 'Adjustment';
+    return tx.source_type ?? tx.type;
+  };
+
   const statusVariant = (s: string): 'success' | 'neutral' | 'error' | 'secondary' => {
     if (s === 'approved' || s === 'paid') return 'success';
     if (s === 'rejected' || s === 'failed') return 'error';
@@ -259,7 +268,7 @@ export function WalletScreen() {
             {transactions.slice(0, 5).map((tx) => (
               <ListItem
                 key={tx.id}
-                title={`${txIcon(tx.type)} ${tx.description ?? tx.type}`}
+                title={`${txIcon(tx.type)} ${txLabel(tx)}`}
                 subtitle={formatDate(tx.created_at)}
                 right={
                   <Text
@@ -290,7 +299,7 @@ export function WalletScreen() {
           renderItem={({ item: tx }) => (
             <ListItem
               key={tx.id}
-              title={`${txIcon(tx.type)} ${tx.description ?? tx.type}`}
+              title={`${txIcon(tx.type)} ${txLabel(tx)}`}
               subtitle={formatDate(tx.created_at)}
               right={
                 <Text

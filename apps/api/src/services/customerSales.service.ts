@@ -145,10 +145,62 @@ export async function logCustomerSale(
     throw new ApiError(500, `Failed to create customer sale items: ${itemsError.message}`);
   }
 
-  // Retail profit is now report-only - no wallet credit
-  // The retail profit is stored in the customer_sale_items and can be calculated from the price difference
+  // 6. Insert retail_profit commission (immediate earn — not staff-approve network bonus)
+  const { data: commission, error: commissionError } = await supabase
+    .from('commissions')
+    .insert({
+      beneficiary_id: distributorId,
+      type: 'retail_profit',
+      amount: totalRetailProfit,
+      source_id: customerSale.id,
+      source_type: 'customer_sale',
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
 
-  // 6. Fetch the created items for response with product names
+  if (commissionError || !commission) {
+    await supabase.from('customer_sale_items').delete().eq('customer_sale_id', customerSale.id);
+    await supabase.from('customer_sales').delete().eq('id', customerSale.id);
+    throw new ApiError(500, `Failed to create retail profit commission: ${commissionError?.message}`);
+  }
+
+  // 7. Credit wallet immediately (retail profit is outside the network PV engine)
+  if (totalRetailProfit > 0) {
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('distributor_id', distributorId)
+      .maybeSingle();
+
+    const newBalance = Number(wallet?.balance ?? 0) + totalRetailProfit;
+    const { error: walletError } = await supabase
+      .from('wallets')
+      .upsert(
+        { distributor_id: distributorId, balance: newBalance },
+        { onConflict: 'distributor_id' },
+      );
+
+    if (walletError) {
+      console.error(`Failed to upsert wallet for retail profit: ${walletError.message}`);
+    } else {
+      const { error: txError } = await supabase.from('wallet_transactions').insert({
+        distributor_id: distributorId,
+        type: 'credit',
+        source_type: 'commission',
+        source_id: commission.id,
+        amount: totalRetailProfit,
+        balance_after: newBalance,
+      });
+      if (txError) {
+        console.error(`Failed to insert wallet transaction for retail profit: ${txError.message}`);
+        throw new ApiError(500, `Failed to credit wallet for retail profit: ${txError.message}`);
+      }
+    }
+  }
+
+  // 8. Fetch the created items for response with product names
   const { data: createdItems, error: fetchItemsError } = await supabase
     .from('customer_sale_items')
     .select(`

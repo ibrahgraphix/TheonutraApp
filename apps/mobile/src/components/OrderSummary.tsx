@@ -9,9 +9,14 @@ interface OrderSummaryProps {
   items: CartItem[];
   total: number;
   currency: string;
+  totalPv?: number;
 }
 
-export function OrderSummary({ items, total, currency }: OrderSummaryProps) {
+export function OrderSummary({ items, total, currency, totalPv }: OrderSummaryProps) {
+  const computedPv =
+    totalPv ??
+    items.reduce((sum, item) => sum + (item.pv ?? 0) * item.quantity, 0);
+
   return (
     <Card>
       <Text style={styles.title}>Order Summary</Text>
@@ -19,6 +24,7 @@ export function OrderSummary({ items, total, currency }: OrderSummaryProps) {
         <View key={item.productId} style={styles.row}>
           <Text style={styles.itemName}>
             {item.name} × {item.quantity}
+            {(item.pv ?? 0) > 0 ? ` · ${(item.pv ?? 0) * item.quantity} PV` : ''}
           </Text>
           <Text style={styles.itemPrice}>
             {formatCurrency(item.price * item.quantity, item.currency)}
@@ -27,8 +33,12 @@ export function OrderSummary({ items, total, currency }: OrderSummaryProps) {
       ))}
       <View style={styles.divider} />
       <View style={styles.row}>
-        <Text style={styles.totalLabel}>Total</Text>
+        <Text style={styles.totalLabel}>Total Price</Text>
         <Text style={styles.totalValue}>{formatCurrency(total, currency)}</Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.totalLabel}>Total PV</Text>
+        <Text style={styles.totalPvValue}>{computedPv}</Text>
       </View>
     </Card>
   );
@@ -68,5 +78,9 @@ const styles = StyleSheet.create({
   totalValue: {
     ...typography.h3,
     color: colors.primary,
+  },
+  totalPvValue: {
+    ...typography.h3,
+    color: colors.text,
   },
 });
